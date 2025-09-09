@@ -1,0 +1,189 @@
+# With just the merchandise report working
+
+# frankiedash.py
+from flask import Flask, render_template, jsonify, request
+import sys
+import os
+from datetime import datetime, timedelta
+
+# Add the current directory to path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Import the BigQuery merchandise analyzer
+from frankmerch_bigquery import MerchandiseAnalyzerBQ
+
+app = Flask(__name__)  # Only declare once
+
+# Configuration
+PROJECT_ID = 'carrol-boyes-ga4'  # Your GCP project
+GA4_PROPERTY_ID = '313412063'  # Your GA4 property ID
+
+# Try to import AI recommendations module
+try:
+    from ai_recommendations import FrankieAIRecommendations
+    AI_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️ AI Recommendations module not found: {e}")
+    print("Make sure ai_recommendations.py is in the same directory")
+    FrankieAIRecommendations = None
+    AI_AVAILABLE = False
+
+# Initialize AI Recommender
+ai_recommender = None
+if AI_AVAILABLE:
+    try:
+        ai_recommender = FrankieAIRecommendations()  # Will use OPENAI_API_KEY env variable
+        print("✓ AI Recommendations module initialized")
+    except ValueError as e:
+        print(f"⚠️ AI Recommendations not available: {e}")
+        print("Set OPENAI_API_KEY environment variable to enable AI features")
+    except Exception as e:
+        print(f"⚠️ Error initializing AI module: {e}")
+else:
+    print("⚠️ AI module not available - check ai_recommendations.py file")
+
+def get_merchandise_data(date_from=None, date_to=None):
+    """Fetch and analyze merchandise data from BigQuery"""
+    try:
+        print("Loading merchandise data from BigQuery...")
+        
+        # Initialize analyzer
+        analyzer = MerchandiseAnalyzerBQ(
+            project_id=PROJECT_ID,
+            credentials_path='bigquery-credentials.json'
+        )
+        
+        # Load data from BigQuery
+        success = analyzer.load_from_bigquery(
+            date_from=date_from,
+            date_to=date_to,
+            ga4_property_id=GA4_PROPERTY_ID,
+            min_views=150
+        )
+        
+        if success:
+            # Run analysis
+            analyzer.calculate_metrics()
+            analyzer.segment_products()
+            analyzer.identify_opportunities()
+            
+            # Get the dashboard data (returns 3 values)
+            insights, recommendations, products = analyzer.prepare_dashboard_data()
+            
+            # Ensure recommendations has all required keys
+            for key in ['homepage_heroes', 'email_features', 'promotion_needed', 'increase_exposure']:
+                if key not in recommendations:
+                    recommendations[key] = []
+            
+            # Return the analyzer as well for AI recommendations
+            return insights, products, recommendations, True, analyzer
+        
+        print("Could not load data from BigQuery")
+        return get_sample_data() + (None,)
+        
+    except Exception as e:
+        print(f"Error loading data: {e}")
+        import traceback
+        traceback.print_exc()
+        return get_sample_data() + (None,)
+
+def get_sample_data():
+    """Fallback sample data if BigQuery connection fails"""
+    # [Keep your existing sample data as is]
+    insights = {
+        'total_revenue': 348937625.89,
+        'total_views': 24567,
+        'total_products': 13,
+        'avg_conversion': 0.0023,
+        # ... rest of your sample data
+    }
+    
+    products = [
+        # ... your sample products
+    ]
+    
+    recommendations = {
+        'homepage_heroes': [],
+        'email_features': [],
+        'promotion_needed': [],
+        'increase_exposure': []
+    }
+    
+    return insights, products, recommendations, False
+
+# Store the analyzer globally for AI recommendations
+current_analyzer = None
+
+@app.route('/')
+def dashboard():
+    """Main dashboard route"""
+    global current_analyzer
+    
+    # Get date parameters from request
+    date_from = request.args.get('from')
+    date_to = request.args.get('to')
+    
+    # Default to last 30 days if not specified
+    if not date_to:
+        date_to = datetime.now().strftime('%Y-%m-%d')
+    if not date_from:
+        date_from = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+    
+    # Try to get real data first
+    result = get_merchandise_data(date_from, date_to)
+    if len(result) == 5:
+        insights, products, recommendations, success, current_analyzer = result
+    else:
+        insights, products, recommendations, success = result
+        current_analyzer = None
+    
+    return render_template('dashboard.html',
+                         insights=insights,
+                         products=products,
+                         recommendations=recommendations,
+                         date_from=date_from,
+                         date_to=date_to,
+                         last_updated=datetime.now().strftime('%B %d, %Y at %I:%M %p'))
+
+@app.route('/api/update-dashboard', methods=['POST'])
+def update_dashboard_api():
+    """API endpoint for date range updates"""
+    data = request.json
+    date_from = data.get('from')
+    date_to = data.get('to')
+    
+    result = get_merchandise_data(date_from, date_to)
+    if len(result) == 5:
+        insights, products, recommendations, success, _ = result
+    else:
+        insights, products, recommendations, success = result
+    
+    return jsonify({
+        'success': success,
+        'insights': insights,
+        'products': products,
+        'recommendations': recommendations
+    })
+
+# [Keep all your other routes as they are - they should work fine]
+
+if __name__ == '__main__':
+    print("\n" + "="*60)
+    print("FRANKIE AI MERCHANDISE ANALYTICS DASHBOARD")
+    print("="*60)
+    print(f"📊 Connected to BigQuery project: {PROJECT_ID}")
+    print(f"📁 GA4 Property: {GA4_PROPERTY_ID}")
+    
+    # Check if OpenAI is configured
+    if ai_recommender:
+        print("🤖 AI Recommendations: ENABLED")
+    else:
+        print("🤖 AI Recommendations: DISABLED (set OPENAI_API_KEY to enable)")
+    
+    print("\nStarting Flask server...")
+    print("Navigate to: http://localhost:8080")
+    print("\nPress CTRL+C to stop the server\n")
+    print("-"*60)
+    
+    # Run the Flask app
+    app.run(debug=True, host='127.0.0.1', port=8080)
