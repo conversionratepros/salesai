@@ -1,0 +1,1495 @@
+#!/usr/bin/env python3
+"""
+Sales Call Transcription and AI Analysis Script
+Processes audio recordings from Airtable, transcribes them with AssemblyAI,
+analyzes them with OpenAI, and updates Airtable with insights.
+"""
+
+import os
+import requests
+import time
+import json
+import re
+from typing import List, Dict, Optional, Tuple
+from datetime import datetime
+from openai import OpenAI
+
+# ================== CONFIGURATION SECTION ==================
+# Edit these mappings when you add new options in Airtable
+
+FIELD_MAPPINGS = {
+    "single_select": {
+        "Sentiment": ["Positive", "Neutral", "Negative"],
+        "Customer Engagement Level": ["High", "Medium", "Low"],
+        "Opportunity Level": ["Hot", "Warm", "Cold"],
+        "Risk Level": ["High", "Medium", "Low"],
+        "Wrap up accuracy": ["Fully accurate", "Somewhat accurate", "Somewhat inaccurate", "Completely inaccurate", "None provided"],
+        "Objective achieved": ["Yes", "No", "Partial"],
+        "Call type": ["Discovery call", "Support call", "Follow up call", "Closing call", "Cold outreach"],
+        "Wrap up accuracy": ["Fully accurate", "Somewhat accurate", "Somewhat inaccurate", "Completely inaccurate"],
+        "Objection types": [
+            "Price", "Timing", "Trust", "Need", "Authority", 
+            "Competition", "Features", "Process", "Risk"
+        ],
+        "Objection handling suggestion": [
+            "Clarify & Reframe", "Empathize & Validate", "Identify Hidden Needs", 
+            "None", "Highlight Urgency or Scarcity", "Cost-to-Value Justification",
+            "Downsell or Redirect", "Active Listening & Discovery"
+        ]
+    },
+    "multi_select": {
+        "Risk Factors": [
+            "Decision Timeline", "Budget Concerns", "Competitor Evaluation", 
+            "Authority Issues", "Trust/Credibility", "Feature/Coverage Gaps", 
+            "Objections Present", "Low Engagement", "Previous Negative Experience", 
+            "Urgency Mismatch"
+        ],
+        "Sales Tactics Used": [
+            "None",
+            "Urgency/Scarcity", "Discount/Pricing Incentive", "Rapport Building", 
+            "Value Demonstration", "Feature Benefits", "Risk Mitigation", 
+            "Competitor Comparison", "Social Proof/Testimonials"
+        ],
+        "Question Categories": [
+            "Pricing", "Administrative", "Objections", 
+            "Product/Coverage", "Process", "Competitor"
+        ],
+        "Objection types": [
+            "Price", "Timing", "Trust", "Need", "Authority", 
+            "Competition", "Features", "Process", "Risk"
+        ],
+        "Key topics": [
+            "Policy details",
+            "Coverage options", 
+            "Pricing or Premiums",
+            "Claims process",
+            "Policy changes",
+            "Renewal discussion",
+            "Pet information",
+            "Medical conditions",
+            "Age restrictions",
+            "Breed considerations",
+            "Multiple pets",
+            "Account details",
+            "Documentation",
+            "Payment setup",
+            "Contact information",
+            "Scheduling",
+            "Technical problems",
+            "Complaint resolution",
+            "Service feedback",
+            "Process clarification"
+        ]
+    }
+}
+
+# Keyword mappings for question categorization
+QUESTION_CATEGORY_KEYWORDS = {
+    "Pricing": ["cost", "price", "premium", "fee", "how much", "expensive", "afford", "payment", "monthly", "annual"],
+    "Administrative": ["email", "send", "contact", "call", "phone", "mail", "document", "paperwork", "account number"],
+    "Objections": ["but", "however", "concern", "worry", "problem", "issue", "what if", "skeptical"],
+    "Product/Coverage": ["plan", "option", "coverage", "what plan", "which plan", "types", "include", "cover", "benefit", "feature", "what do you have"],
+    "Process": ["how do", "process", "apply", "start", "next step", "procedure", "sign up", "enroll", "begin"],
+    "Competitor": ["compare", "other", "versus", "competitor", "different", "better than", "alternative"]
+}
+
+# Value mappings for single-select fields that need translation
+VALUE_MAPPINGS = {
+    "Objective achieved": {
+        "partial": "Unsure",
+        "unknown": "Unsure",
+        "yes": "Yes",
+        "achieved": "Yes",
+        "unsure": "Partial", 
+        "unknown": "Partial",
+        "successful": "Yes",
+        "no": "No",
+        "failed": "No",
+        "unsuccessful": "No"
+    }
+}
+
+# ================== AIRTABLE MANAGER ==================
+
+class AirtableManager:
+    def __init__(self, api_key: str, base_id: str, table_name: str):
+        self.api_key = api_key
+        self.base_id = base_id
+        self.table_name = table_name
+        self.base_url = f"https://api.airtable.com/v0/{base_id}/{table_name}"
+        self.headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        self.unmapped_values = {"single_select": {}, "multi_select": {}}
+    
+    def get_records_needing_transcription(self) -> List[Dict]:
+        """Get records that have audio files but no real transcription"""
+        filter_formula = "AND({Audio file} != '', OR({Transcription} = '', FIND('Hello, how are you? Thank you, I\\'m well, thank you.', {Transcription}) > 0))"
+        
+        try:
+            response = requests.get(self.base_url, headers=self.headers, 
+                                  params={'filterByFormula': filter_formula})
+            response.raise_for_status()
+            data = response.json()
+            return data.get('records', [])
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching records: {e}")
+            return []
+    
+    def update_record(self, record_id: str, fields: Dict) -> bool:
+        """Update a specific record with new field values"""
+        url = f"{self.base_url}/{record_id}"
+        
+        # Clean the fields to ensure no extra quotes
+        cleaned_fields = {}
+        for key, value in fields.items():
+            if isinstance(value, list):
+                # Ensure list items are clean strings
+                cleaned_fields[key] = [str(item).strip() for item in value]
+            else:
+                cleaned_fields[key] = value
+        
+        payload = {"fields": cleaned_fields}
+        
+        # Debug output
+        if "Key topics" in cleaned_fields:
+            print(f"DEBUG - Sending Key topics payload: {json.dumps(payload, indent=2)}")
+        
+        try:
+            response = requests.patch(url, headers=self.headers, json=payload)
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            if hasattr(e, 'response') and e.response is not None:
+                error_msg = e.response.text
+                print(f"DEBUG - Full error response: {error_msg}")
+
+                
+                # Track unmapped values
+                if "Insufficient permissions to create new select option" in error_msg:
+                    match = re.search(r'option "+"([^"]+)"+"', error_msg)
+                    if match:
+                        value = match.group(1)
+                        for field, field_value in fields.items():
+                            if isinstance(field_value, str) and value in field_value:
+                                self.unmapped_values["single_select"][field] = value
+                            elif isinstance(field_value, list) and value in field_value:
+                                if field not in self.unmapped_values["multi_select"]:
+                                    self.unmapped_values["multi_select"][field] = []
+                                self.unmapped_values["multi_select"][field].append(value)
+            return False
+    
+    def get_audio_file_url(self, record: Dict) -> Optional[str]:
+        """Extract the audio file URL from a record"""
+        audio_field = record.get('fields', {}).get('Audio file', [])
+        if audio_field and len(audio_field) > 0:
+            return audio_field[0].get('url')
+        return None
+    
+    def report_unmapped_values(self):
+        """Report all unmapped values found during processing"""
+        if self.unmapped_values["single_select"] or self.unmapped_values["multi_select"]:
+            print("\n" + "="*60)
+            print("📋 UNMAPPED VALUES SUMMARY")
+            print("="*60)
+            print("\nAdd these options to your Airtable dropdowns:\n")
+            
+            for field, value in self.unmapped_values["single_select"].items():
+                print(f"Single-select field '{field}':")
+                print(f"  → Add option: '{value}'")
+            
+            for field, values in self.unmapped_values["multi_select"].items():
+                print(f"\nMulti-select field '{field}':")
+                for value in set(values):
+                    print(f"  → Add option: '{value}'")
+            
+            print("\n" + "="*60)
+
+# ================== ASSEMBLYAI TRANSCRIBER ==================
+
+class GeminiTranscriber:
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
+    
+    def transcribe_audio(self, audio_url: str) -> Dict:
+        """Download audio and transcribe with Gemini Flash"""
+        print(f"📤 Downloading audio for Gemini transcription...")
+        
+        try:
+            # Download the audio file
+            audio_response = requests.get(audio_url)
+            audio_response.raise_for_status()
+            
+            # Save to temporary file
+            import tempfile
+            import os
+            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp_file:
+                tmp_file.write(audio_response.content)
+                tmp_path = tmp_file.name
+            
+            print(f"✅ Audio downloaded successfully!")
+            print("🎯 Starting transcription with Gemini Flash...")
+            
+            # Import at function level to ensure it's available
+            import google.generativeai as genai
+            
+            # Upload the file - corrected syntax for v0.8.5
+            uploaded_file = genai.upload_file(path=tmp_path, mime_type='audio/mpeg')
+            
+            # Wait for file to be processed if needed
+            import time
+            while uploaded_file.state.name == "PROCESSING":
+                time.sleep(1)
+                uploaded_file = genai.get_file(uploaded_file.name)
+            
+            # Simple transcription prompt
+            prompt = """Please transcribe this audio file completely and accurately. 
+            Include every word spoken by each person.
+            When there are multiple speakers, start each speaker's turn with "Speaker A:" or "Speaker B:" on a new line.
+            Be very accurate with the transcription."""
+            
+            response = self.model.generate_content([uploaded_file, prompt])
+            
+            # Clean up temp file
+            os.unlink(tmp_path)
+            
+            # Delete the uploaded file from Gemini
+            genai.delete_file(uploaded_file.name)
+            
+            print("✅ Transcription completed!")
+            
+            # Parse the response to create utterances in AssemblyAI format
+            raw_text = response.text
+            utterances = []
+            
+            # Simple parsing - split by lines and look for speaker markers
+            lines = raw_text.split('\n')
+            current_speaker = 'A'
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                
+                # Check if line starts with speaker marker
+                if line.lower().startswith('speaker a:'):
+                    current_speaker = 'A'
+                    text = line[10:].strip()  # Remove "Speaker A:"
+                elif line.lower().startswith('speaker b:'):
+                    current_speaker = 'B'
+                    text = line[10:].strip()  # Remove "Speaker B:"
+                elif line.startswith('[Speaker A]:'):
+                    current_speaker = 'A'
+                    text = line[13:].strip()
+                elif line.startswith('[Speaker B]:'):
+                    current_speaker = 'B'
+                    text = line[13:].strip()
+                else:
+                    # No speaker marker - continuation of current speaker
+                    text = line
+                    # Simple alternation if needed
+                    if len(utterances) > 0 and len(text) > 20:
+                        if current_speaker == 'A':
+                            current_speaker = 'B'
+                        else:
+                            current_speaker = 'A'
+                
+                if text:
+                    utterances.append({
+                        'speaker': current_speaker,
+                        'text': text
+                    })
+            
+            # If Gemini didn't provide speaker labels, create utterances from sentences
+            if not utterances:
+                # Split into sentences and alternate speakers
+                import re
+                sentences = re.split(r'[.!?]+', raw_text)
+                for i, sentence in enumerate(sentences):
+                    sentence = sentence.strip()
+                    if sentence:
+                        utterances.append({
+                            'speaker': 'A' if i % 2 == 0 else 'B',
+                            'text': sentence
+                        })
+            
+            # Build full transcript from utterances
+            full_transcript = ' '.join([u['text'] for u in utterances])
+            
+            # To do: Update this function to find audio duration from metadata if available & check why we are returning 95% confidence in the return
+            # Estimate duration (150 words per minute average)
+            total_words = len(full_transcript.split())
+            estimated_duration = (total_words / 150) * 60  # in seconds
+            
+            return {
+                'success': True,
+                'text': full_transcript,
+                'utterances': utterances,
+                'confidence': 0.95,
+                'audio_duration': estimated_duration
+            }
+            
+        except Exception as e:
+            print(f"❌ Error during Gemini transcription: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+# ================== OPENAI ANALYZER ==================
+
+class OpenAIAnalyzer:
+    """Handles all AI-powered analysis using OpenAI API"""
+    
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.client = OpenAI(api_key=api_key)
+    
+    def assess_wrap_up_accuracy(self, formatted_transcript: str, wrap_up_reason: str, ai_analysis: Dict) -> Dict:
+        """Assess the accuracy of the agent's wrap-up reason against the actual transcript"""
+        
+        prompt = f"""Compare the agent's wrap-up reason with the actual call transcript and assess its accuracy.
+
+ACTUAL TRANSCRIPT (excerpt):
+{formatted_transcript[:2000]}
+
+AGENT'S WRAP-UP REASON:
+{wrap_up_reason}
+
+KEY TOPICS FROM ANALYSIS:
+{', '.join(ai_analysis.get('key_topics', []))}
+
+CALL OUTCOME:
+- Objective achieved: {ai_analysis.get('call_objective_achieved', {}).get('achieved', 'Unknown')}
+- Opportunity level: {ai_analysis.get('opportunity_assessment', {}).get('level', 'Unknown')}
+- Next actions: {', '.join(ai_analysis.get('next_actions', [])[:3])}
+
+Assess how accurately the wrap-up reason reflects what actually happened in the call.
+
+Provide JSON response:
+{{
+    "accuracy": "Fully accurate/Somewhat accurate/Somewhat inaccurate/Completely inaccurate",
+    "reason": "Brief explanation (max 200 chars) of why this accuracy rating was given",
+    "key_discrepancies": ["List any major discrepancies between wrap-up and actual call"]
+}}"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a quality assurance analyst comparing agent notes with actual call transcripts. Be objective and specific."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.0,
+                max_tokens=300,
+                response_format={"type": "json_object"}
+            )
+            
+            result = json.loads(response.choices[0].message.content)
+            
+            # Validate the accuracy level
+            valid_levels = ["Fully accurate", "Somewhat accurate", "Somewhat inaccurate", "Completely inaccurate"]
+            if result.get('accuracy') not in valid_levels:
+                result['accuracy'] = "Somewhat accurate"
+            
+            return {
+                'accuracy': result.get('accuracy', 'Somewhat accurate'),
+                'reason': result.get('reason', 'Unable to assess')[:200]
+            }
+            
+        except Exception as e:
+            print(f"❌ Error assessing wrap-up accuracy: {e}")
+            return {
+                'accuracy': 'Somewhat accurate',
+                'reason': 'Error during assessment'
+            }
+    
+    def analyze_call_comprehensive(self, formatted_transcript: str, raw_transcript: str) -> Dict:
+        """Comprehensive call analysis using GPT-4o-mini"""
+        
+        # Extract customer-only text more precisely
+        customer_lines = []
+        salesperson_lines = []
+        
+        for line in formatted_transcript.split('\n'):
+            if line.strip().startswith('[Customer]:'):
+                customer_lines.append(line.replace('[Customer]:', '').strip())
+            elif line.strip().startswith('[Salesperson]:'):
+                salesperson_lines.append(line.replace('[Salesperson]:', '').strip())
+        
+        customer_text = ' '.join(customer_lines)
+        salesperson_text = ' '.join(salesperson_lines)
+
+        # Define valid options for the AI to choose from
+        valid_sales_tactics = FIELD_MAPPINGS["multi_select"]["Sales Tactics Used"]
+        valid_risk_factors = FIELD_MAPPINGS["multi_select"]["Risk Factors"]
+        valid_question_categories = FIELD_MAPPINGS["multi_select"]["Question Categories"]
+        valid_key_topics = FIELD_MAPPINGS["multi_select"]["Key topics"]
+        
+        prompt = f"""Analyze this insurance sales call transcript with extreme precision.
+
+TRANSCRIPT:
+{formatted_transcript[:8000]}
+
+CUSTOMER ONLY TEXT:
+{customer_text[:1000]}
+
+SALESPERSON ONLY TEXT:
+{salesperson_text[:1000]}
+
+KEY TOPICS - CATEGORIZATION INSTRUCTIONS:
+Identify 2-5 main topics discussed in this call from this list:
+{FIELD_MAPPINGS["multi_select"]["Key topics"]}
+
+Selection guidelines:
+- "Pricing or Premiums" if costs or payment amounts discussed
+- "Policy details" if specific coverage or plan features discussed
+- "Coverage options" if comparing different plans
+- "Pet information" if discussing pet's name, age, or basic details
+- "Medical conditions" if pre-existing conditions mentioned
+- "Payment setup" if discussing how to pay or payment methods
+- "Scheduling" if arranging callbacks or appointments
+- "Account details" if discussing account numbers or login info
+- Select only topics with substantial discussion, not brief mentions
+
+CUSTOMER QUESTIONS - CRITICAL INSTRUCTIONS:
+A customer question must meet ALL these criteria:
+1. It must be spoken BY THE CUSTOMER (from [Customer]: lines)
+2. It must be an ACTUAL QUESTION (has question mark OR clear interrogative structure)
+3. It must be seeking information, clarification, or confirmation
+
+NOT questions:
+- Statements even if they end with question mark tone
+- Rhetorical questions
+- Incomplete thoughts
+- "Okay, thanks" or similar acknowledgments
+- Statements like "I'll think about it"
+
+Valid question examples:
+- "How much does it cost?"
+- "What plans do you have?"
+- "So if we sign up this month?" (seeking clarification)
+- "When can you call me back?"
+
+For each REAL customer question found:
+1. Extract the exact question text
+2. Categorize it into ONE of these categories:
+   - "Pricing" - questions about cost, premiums, discounts, payment
+   - "Administrative" - questions about contact, documentation, account details
+   - "Objections" - questions expressing doubts or concerns
+   - "Product/Coverage" - questions about plans, coverage, benefits, features
+   - "Process" - questions about how to sign up, apply, or next steps
+   - "Competitor" - questions comparing to other providers
+
+VALID OPTIONS FOR DROPDOWNS:
+- Key topics: {valid_key_topics}
+- Question Categories: {valid_question_categories}
+- Sales Tactics: {valid_sales_tactics}
+- Risk Factors: {valid_risk_factors}
+
+OBJECTIVE ACHIEVED ASSESSMENT - CRITICAL RULES:
+The objective of any sales call is to either:
+1. Make a sale, OR
+2. Get a firm commitment for future engagement, OR  
+3. Successfully resolve a service issue (for existing customers)
+
+"Yes" - Objective FULLY ACHIEVED if ANY of these occur:
+- SALE MADE: Policy number issued, payment processed, application completed, "welcome to our family" stated
+- POLICY NUMBER GIVEN: ANY mention of "your policy number is" or "policy number will be" = AUTOMATIC YES
+- PAYMENT SETUP: Debit order arranged with specific date and amount = AUTOMATIC YES
+- WELCOME MESSAGE: "Welcome to [company] family" or similar = AUTOMATIC YES
+- CONFIRMATION QUESTIONS: Customer answers "yes" to final confirmation questions = AUTOMATIC YES
+- FIRM COMMITMENT: Specific date/time scheduled for next call/meeting (e.g., "let's talk Tuesday at 3pm")
+- SERVICE SUCCESS: Existing customer's issue resolved, claim processed, or changes made successfully
+
+⚠️ CRITICAL INSTRUCTION: Search for these EXACT phrases that ALWAYS mean "Yes":
+- "policy number"
+- "welcome to"
+- "your policy has been"
+- "first debit order"
+- "do you confirm that you have agreed to take this product"
+- Customer saying "yes" after being asked to confirm the purchase
+
+"Partial" - Objective PARTIALLY ACHIEVED if:
+- SOFT COMMITMENT: Customer agrees to think about it with loose timeframe ("I'll call you back this week")
+- PROGRESS MADE: Customer provides information, answers qualifying questions, shows genuine interest
+- EMAIL AGREEMENT: Customer agrees to receive information via email
+- CONSIDERATION: Customer says they'll review with spouse/partner
+- QUOTE PROVIDED: Full quote given and customer is considering it
+- Customer says things like "looks good" or "I think the classic" without confirming purchase
+
+"No" - Objective NOT ACHIEVED if:
+- REJECTION: Customer says not interested with no follow-up accepted
+- REMOVE REQUEST: Customer asks to be removed from contact list
+- DEAD END: Wrong number, no referral obtained, call ends abruptly
+- NO PROGRESS: No forward movement at all in the conversation
+
+⚠️ ULTRA CRITICAL: If the transcript contains "policy number" followed by actual numbers, ALWAYS return "Yes"
+⚠️ ULTRA CRITICAL: If customer confirms the purchase with "yes" when asked, ALWAYS return "Yes"
+⚠️ ULTRA CRITICAL: Look at the ENTIRE transcript, especially the END where sales are typically closed
+⚠️ IMPORTANT: For the response, use EXACTLY these values: "Yes", "Partial", or "No"
+
+STRICT RULES FOR SALES TACTICS:
+- Urgency/Scarcity: REQUIRES phrases like "limited time", "offer expires", "only available until", "last chance", "act now"
+- Discount/Pricing Incentive: REQUIRES mention of specific discount, special price, or promotional offer
+- Rapport Building: REQUIRES personal conversation beyond greeting (hobbies, family, shared interests, weather discussion)
+- Value Demonstration: REQUIRES explaining specific benefits, ROI, or value propositions
+- Feature Benefits: REQUIRES describing specific product features and their advantages
+- Risk Mitigation: REQUIRES mentioning guarantees, warranties, or risk reduction
+- Competitor Comparison: REQUIRES comparing to specific competitors
+- Social Proof/Testimonials: REQUIRES mentioning other customers' experiences or reviews
+
+⚠️ CRITICAL: Basic greetings like "Good morning, how are you?" are NOT sales tactics.
+⚠️ CRITICAL: Simply saying "I'm calling from [company]" is NOT a sales tactic.
+⚠️ CRITICAL: If NO tactics meet these requirements, return empty array []
+
+OPPORTUNITY ASSESSMENT GUIDANCE:
+Assess the BUSINESS OPPORTUNITY based on customer engagement with the product/service, NOT their emotional state in this call.
+- Hot: Customer ready to buy, asking about signing up, or actively negotiating terms
+- Warm: Customer actively engaged with product details (pricing, plans, coverage, features) even if frustrated with service
+- Cold: Customer not interested in the product itself or not engaging with business aspects
+
+Frustration with service issues should be captured in Risk Factors, not reduce Opportunity score.
+
+"Trust/Credibility": ONLY flag this if customer:
+  - Explicitly questions company legitimacy ("Is this a real company?")
+  - Asks for verification/credentials multiple times
+  - Expresses doubt about the salesperson's claims ("I don't believe that")
+  - Mentions checking with others to verify information
+  - Says things like "sounds too good to be true"
+
+    RISK FACTOR DETECTION - STRICT CRITERIA:
+Only flag risk factors with clear evidence from the transcript:
+
+"Decision Timeline": Customer explicitly mentions needing time, consulting others, or delaying decision
+"Budget Concerns": Customer directly mentions price issues, affordability, or financial constraints  
+"Competitor Evaluation": Customer mentions comparing to other companies or getting other quotes
+"Authority Issues": Customer says they need approval from someone else (spouse, boss, etc.)
+"Trust/Credibility": ONLY flag if customer:
+  - Explicitly questions company legitimacy ("Is this a real company?")
+  - Asks for verification/credentials multiple times
+  - Expresses doubt about the salesperson's claims ("I don't believe that")
+  - Mentions checking with others to verify information
+  - Says things like "sounds too good to be true"
+"Feature/Coverage Gaps": Customer says product doesn't meet specific needs or lacks required features
+"Objections Present": Customer raises clear objections or concerns about the product/service
+"Low Engagement": Customer gives very short answers, seems disinterested, or tries to end call
+"Previous Negative Experience": Customer mentions bad experiences with this company or insurance
+"Urgency Mismatch": Customer's timeline doesn't match salesperson's urgency
+
+DO NOT flag risk factors based on:
+- Normal questions about the product
+- Standard information gathering
+- Polite conversation
+- General cautiousness that's normal for financial transactions
+- Normal information corrections
+- Standard verification of details
+- General cautiousness with payment information
+
+⚠️ CRITICAL: Only flag risk factors with explicit evidence from the transcript. Do not infer or assume risk factors.
+
+Provide JSON response:
+{{
+    "key_topics": ["2-3 word phrases"],
+    "sentiment": {{"label": "Positive/Neutral/Negative", "score": 0-100, "explanation": "brief"}},
+    "customer_concerns": ["2-3 word phrases"],
+    "customer_questions_detailed": [
+        {{
+            "question_text": "exact question from customer",
+            "category": "one of: Pricing/Administrative/Objections/Product\\/Coverage/Process/Competitor"
+        }}
+    ],
+    "objections": {{"present": true/false, "types": ["Price", "Timing", "Trust", etc from valid list"], "specific_objections": [], "handling_quality": 0-100}},
+    "opportunity_assessment": {{
+        "score": 0-100,
+        "level": "Hot/Warm/Cold",
+        "positive_indicators": [],
+        "negative_indicators": [],
+        "reasoning": "Focus on business engagement, not emotional state"
+    }},
+    "risk_assessment": {{
+        "score": 0-100,
+        "level": "High/Medium/Low",
+        "risk_factors": ["ONLY from valid list above"],
+        "risk_factors_reasoning": {{"factor_name": "quote from transcript that justifies this factor"}},
+        "reasoning": "brief"
+    }},
+    "engagement_quality": {{"score": 0-100, "level": "High/Medium/Low", "indicators": []}},
+    "next_actions": ["2-3 word actions"],
+    "call_objective_achieved": {{"achieved": "Yes/Partial/No", "explanation": "brief explanation referencing specific evidence from transcript"}},
+    "sales_tactics_used": ["ONLY from valid list IF clearly demonstrated, else []"],
+    "sales_tactics_reasoning": {{"tactic_name": "exact quote from transcript that demonstrates this tactic"}},
+    "key_insights": "1-2 sentences"
+}}
+
+For sales_tactics_reasoning and risk_factors_reasoning, provide the EXACT quote that justifies each selection.
+Analyze the ACTUAL transcript, not what typically happens in sales calls.
+For customer_questions_detailed, be VERY strict - only include ACTUAL questions, not statements."""
+
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a precise sales call analyst. Be EXTREMELY strict about what constitutes a customer question - only actual questions with interrogative structure or question marks. Statements are NOT questions even if they seem conversational."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.0,
+                max_tokens=1500,
+                response_format={"type": "json_object"}
+            )
+            
+            result = json.loads(response.choices[0].message.content)
+
+            result = json.loads(response.choices[0].message.content)
+
+            # SAFETY CHECK: Override if we detect clear sale indicators
+            if any(phrase in raw_transcript.lower() for phrase in [
+                "policy number will be", 
+                "policy number is", 
+                "welcome to the one clan family",
+                "welcome to one plan",
+                "first debit order will be"
+            ]):
+                if result['call_objective_achieved']['achieved'] != "Yes":
+                    print("⚠️ OVERRIDE: Detected completed sale markers, forcing Objective to 'Yes'")
+                    result['call_objective_achieved']['achieved'] = "Yes"
+                    result['call_objective_achieved']['explanation'] = "Sale completed - policy number issued and customer welcomed"
+            
+            # Process the detailed questions into the format we need
+            customer_questions = []
+            question_categories = []
+            
+            if 'customer_questions_detailed' in result:
+                for q_detail in result['customer_questions_detailed']:
+                    question_text = q_detail.get('question_text', '')
+                    category = q_detail.get('category', '')
+                    
+                    if question_text:
+                        customer_questions.append(question_text)
+                        
+                        # Normalize category name (handle "Product/Coverage" vs "Product/Coverage")
+                        if category == "Product/Coverage" or category == "Product\\/Coverage":
+                            category = "Product/Coverage"
+                        
+                        if category in valid_question_categories and category not in question_categories:
+                            question_categories.append(category)
+                
+                # Log what we found
+                print(f"   ✅ Found {len(customer_questions)} valid customer questions")
+                if customer_questions:
+                    for i, q in enumerate(customer_questions[:3]):  # Show first 3
+                        print(f"      Q{i+1}: '{q[:50]}...'")
+                if question_categories:
+                    print(f"   📊 Categories identified by AI: {question_categories}")
+            
+            # Replace the old customer_questions with our validated ones
+            result['customer_questions'] = customer_questions
+            result['question_categories'] = question_categories
+            
+            # Remove the detailed version from result
+            if 'customer_questions_detailed' in result:
+                del result['customer_questions_detailed']
+            
+            # ... rest of the validation code stays the same ...
+
+                print(f"   ✅ Validated customer questions: {len(result['customer_questions'])}")
+            
+            # DEBUG: Print reasoning for selections
+            print("\n🔍 AI SELECTION REASONING:")
+            
+            # Show what tactics were selected and why
+            if 'sales_tactics_used' in result and result['sales_tactics_used']:
+                print(f"📊 Sales Tactics Selected: {result['sales_tactics_used']}")
+                
+                if 'sales_tactics_reasoning' in result and result['sales_tactics_reasoning']:
+                    print("📊 Sales Tactics Justification:")
+                    for tactic, reason in result['sales_tactics_reasoning'].items():
+                        print(f"   • {tactic}: \"{reason[:100]}...\"" if len(reason) > 100 else f"   • {tactic}: \"{reason}\"")
+                else:
+                    print("   ⚠️ No justification provided by AI for sales tactics")
+            else:
+                print("📊 Sales Tactics: None detected")
+            
+            # Show risk factors and reasoning
+            if 'risk_assessment' in result:
+                if 'risk_factors' in result['risk_assessment'] and result['risk_assessment']['risk_factors']:
+                    print(f"📊 Risk Factors Selected: {result['risk_assessment']['risk_factors']}")
+                    
+                    if 'risk_factors_reasoning' in result['risk_assessment'] and result['risk_assessment']['risk_factors_reasoning']:
+                        print("📊 Risk Factors Justification:")
+                        for factor, reason in result['risk_assessment']['risk_factors_reasoning'].items():
+                            print(f"   • {factor}: \"{reason[:100]}...\"" if len(reason) > 100 else f"   • {factor}: \"{reason}\"")
+                    else:
+                        print("   ⚠️ No justification provided by AI for risk factors")
+            
+            # Show opportunity assessment
+            if 'opportunity_assessment' in result:
+                print(f"📊 Opportunity Level: {result['opportunity_assessment']['level']}")
+                print(f"   • Reasoning: {result['opportunity_assessment'].get('reasoning', 'No reasoning provided')}")
+            
+            # Validate and remove false positives
+            print("\n📊 Starting validation...")
+            
+            if 'sales_tactics_used' in result and result['sales_tactics_used']:
+                tactics_to_remove = []
+                
+                # Check Urgency/Scarcity
+                if "Urgency/Scarcity" in result['sales_tactics_used']:
+                    urgency_keywords = ['limited time', 'expires', 'last chance', 'ending soon', 'hurry', 'today only', 'act now']
+                    if not any(keyword in raw_transcript.lower() for keyword in urgency_keywords):
+                        print("   ⚠️ Removing Urgency/Scarcity - no evidence found in transcript")
+                        tactics_to_remove.append("Urgency/Scarcity")
+                
+                # Check Rapport Building
+                if "Rapport Building" in result['sales_tactics_used']:
+                    rapport_keywords = ['how was your weekend', 'family', 'hobby', 'personal', 'weather', 'sports', 'kids']
+                    if not any(keyword in raw_transcript.lower() for keyword in rapport_keywords):
+                        print("   ⚠️ Removing Rapport Building - only basic greetings found")
+                        tactics_to_remove.append("Rapport Building")
+                
+                # Remove identified false positives
+                for tactic in tactics_to_remove:
+                    if tactic in result['sales_tactics_used']:
+                        result['sales_tactics_used'].remove(tactic)
+                    if 'sales_tactics_reasoning' in result and tactic in result['sales_tactics_reasoning']:
+                        del result['sales_tactics_reasoning'][tactic]
+            
+            # Clean up reasoning fields (they're just for debugging)
+            if 'sales_tactics_reasoning' in result:
+                del result['sales_tactics_reasoning']
+            if 'risk_assessment' in result and 'risk_factors_reasoning' in result['risk_assessment']:
+                del result['risk_assessment']['risk_factors_reasoning']
+            
+            # Fix common typos
+            if result.get('opportunity_assessment', {}).get('level') == "Cool":
+                result['opportunity_assessment']['level'] = "Cold"
+            
+            return result
+            
+        except Exception as e:
+            print(f"❌ OpenAI API error: {e}")
+            return self._get_fallback_analysis()
+    
+    def _get_fallback_analysis(self) -> Dict:
+        """Fallback analysis if API fails"""
+        return {
+            "key_topics": ["General Discussion"],
+            "sentiment": {"label": "Neutral", "score": 50, "explanation": "Unable to analyze"},
+            "customer_concerns": [],
+            "customer_questions": [],
+            "objections": {"present": False, "types": [], "specific_objections": [], "handling_quality": 50},
+            "opportunity_assessment": {"score": 50, "level": "Warm", "positive_indicators": [], "negative_indicators": [], "reasoning": "Unable to analyze"},
+            "risk_assessment": {"score": 50, "level": "Medium", "risk_factors": [], "reasoning": "Unable to analyze"},
+            "engagement_quality": {"score": 50, "level": "Medium", "indicators": []},
+            "next_actions": ["Follow up required"],
+            "call_objective_achieved": {"achieved": "Partial", "explanation": "Unable to analyze - defaulting to Partial"},  # Changed from "Unknown" to "Partial"
+            "sales_tactics_used": [],
+            "key_insights": "Analysis unavailable due to API error"
+    }
+    
+    def validate_and_adjust_analysis(self, ai_analysis: Dict, talk_ratios: Dict, audio_duration: float) -> Dict:
+        """Validate AI analysis against quantitative metrics"""
+        
+        customer_talk = float(talk_ratios.get('customer', 0))
+        
+        # Adjust engagement based on actual talk ratio
+        if customer_talk < 20 and ai_analysis['engagement_quality']['score'] > 70:
+            ai_analysis['engagement_quality']['score'] = min(50, ai_analysis['engagement_quality']['score'])
+            ai_analysis['engagement_quality']['level'] = "Low" if customer_talk < 15 else "Medium"
+        
+        # Adjust opportunity for very short calls
+        if audio_duration < 60 and ai_analysis['opportunity_assessment']['score'] > 80:
+            ai_analysis['opportunity_assessment']['score'] = min(60, ai_analysis['opportunity_assessment']['score'])
+        
+        return ai_analysis
+    
+    def calculate_sales_performance_score(self, analysis_data: Dict) -> Tuple[int, str]:
+        """
+        Calculate a consistent, objective sales performance score based on multiple metrics.
+        Returns a score 0-100 and an explanation of the calculation.
+        
+        This scoring algorithm is designed to be:
+        - Consistent: Same inputs always produce same outputs
+        - Transparent: Each component is weighted and documented
+        - Objective: Based on measurable metrics from the call analysis
+        """
+        
+        # Initialize component scores
+        components = {}
+        
+        # 1. Objective Achievement (25% weight)
+        objective_map = {"Yes": 100, "Partial": 50, "No": 0, "Unknown": 25}  # "Partial" now standard
+        objective_achieved = analysis_data.get('Objective achieved', 'Partial')  # Default to Partial
+        components['objective'] = objective_map.get(objective_achieved, 50) * 0.25
+        
+        # 2. Customer Engagement (20% weight)
+        engagement_score = analysis_data.get('Customer Engagement Score', 50)
+        components['engagement'] = engagement_score * 0.20
+        
+        # 3. Opportunity Development (20% weight)
+        opportunity_score = analysis_data.get('Opportunity Score', 50)
+        components['opportunity'] = opportunity_score * 0.20
+        
+        # 4. Risk Management (15% weight) - inverted (lower risk = higher score)
+        risk_score = analysis_data.get('Risk Score', 50)
+        components['risk'] = (100 - risk_score) * 0.15
+        
+        # 5. Objection Handling (10% weight) - only if objections were present
+        # If no objections, redistribute this weight to other components
+        if 'Objection handling score' in analysis_data:
+            objection_score = analysis_data.get('Objection handling score', 50)
+            components['objection'] = objection_score * 0.10
+            talk_ratio_weight = 0.10
+        else:
+            # No objections - redistribute the 10% weight
+            # Add 2.5% each to the top 4 components
+            components['objective'] = components['objective'] * (1.1)  # Add 10% of its current value
+            components['engagement'] = components['engagement'] * (1.125)  # Proportional increase
+            components['opportunity'] = components['opportunity'] * (1.125)
+            components['risk'] = components['risk'] * (1.167)
+            talk_ratio_weight = 0.10
+        
+        # 6. Talk Ratio Quality (10% weight) - optimal is 40-60% customer talk
+        customer_talk = analysis_data.get('Talk Ratio (Customer)', 0.5) * 100
+        if 40 <= customer_talk <= 60:
+            talk_ratio_score = 100
+        elif 30 <= customer_talk < 40 or 60 < customer_talk <= 70:
+            talk_ratio_score = 75
+        elif 20 <= customer_talk < 30 or 70 < customer_talk <= 80:
+            talk_ratio_score = 50
+        else:
+            talk_ratio_score = 25
+        components['talk_ratio'] = talk_ratio_score * talk_ratio_weight
+        
+        # Calculate total score
+        total_score = sum(components.values())
+        
+        # Apply modifiers for critical failures
+        modifiers = []
+        
+        # Critical failure: Very short calls (under 30 seconds)
+        if analysis_data.get('Audio duration', 60) < 30:
+            total_score = min(total_score, 40)
+            modifiers.append("capped at 40 due to very short duration")
+        
+        # Critical failure: No customer engagement (customer talk < 10%)
+        if customer_talk < 10:
+            total_score = min(total_score, 30)
+            modifiers.append("capped at 30 due to minimal customer participation")
+        
+        # Build explanation
+        explanation_parts = [
+            f"Objective({objective_achieved})={components['objective']:.1f}",
+            f"Engagement={components['engagement']:.1f}",
+            f"Opportunity={components['opportunity']:.1f}",
+            f"RiskMgmt={components['risk']:.1f}",
+        ]
+        
+        if 'objection' in components:
+            explanation_parts.append(f"Objections={components['objection']:.1f}")
+        else:
+            explanation_parts.append("Objections=N/A(no objections)")
+            
+        explanation_parts.append(f"TalkRatio={components['talk_ratio']:.1f}")
+        
+        if modifiers:
+            explanation = f"Score breakdown: {', '.join(explanation_parts)}. Note: {'; '.join(modifiers)}"
+        else:
+            explanation = f"Score breakdown: {', '.join(explanation_parts)}"
+        
+        return int(round(total_score)), explanation[:500]
+
+# ================== TRANSCRIPT PROCESSING ==================
+
+def format_transcript_with_speakers(utterances):
+    """Format transcript with intelligent speaker identification"""
+    if not utterances:
+        return "No speaker information available", {"salesperson": 0, "customer": 0}
+    
+    # Collect text by speaker for analysis
+    speakers_text = {}
+    speaker_stats = {}
+    
+    for utterance in utterances:
+        speaker = utterance.get('speaker', 'Unknown')
+        text = utterance.get('text', '').strip()
+        
+        if speaker not in speakers_text:
+            speakers_text[speaker] = []
+            speaker_stats[speaker] = {'count': 0, 'total_chars': 0}
+        
+        speakers_text[speaker].append(text)
+        speaker_stats[speaker]['count'] += 1
+        speaker_stats[speaker]['total_chars'] += len(text)
+    
+    # Keywords that indicate salesperson
+    salesperson_indicators = [
+        'calling from', 'speaking from', 'calling you from', 'call from',
+        'regarding your', 'about your', 'follow up', 'following up',
+        'our company', 'our service', 'our product', 'we offer',
+        'pet insurance', 'insurance plan', 'coverage', 'policy',
+        'one plan', 'calling about', 'reaching out', 'contact you',
+        'give you a call', 'giving you a call', "i'm calling",
+        'special offer', 'promotion', 'my name is', "i'm from",
+        'i called you', 'called you yesterday', 'with regards to a plan',
+        'regards to your', 'spoke yesterday', 'we talked yesterday',
+        'as discussed', 'as we discussed', 'following up on'
+    ]
+    
+    # Keywords that indicate customer
+    customer_indicators = [
+        'my pet', 'my dog', 'my cat', 'my animal',
+        'i have a', "i'm looking for", 'i need', 'i want',
+        'how much', 'what does it cost', 'too expensive',
+        'let me think', 'i will consider', 'not sure',
+        'call me back', 'send me', 'email me', 'my vet',
+        'my girlfriend', 'my wife', 'my husband', 'my partner',
+        'still deciding', 'wants to know more', 'need more time',
+        'review everything', 'think about it', 'talk it over',
+        'you from', 'are you from', 'you calling from'
+    ]
+    
+    # Score each speaker
+    speaker_scores = {}
+    
+    for speaker, texts in speakers_text.items():
+        combined_text = ' '.join(texts).lower()
+        salesperson_score = 0
+        customer_score = 0
+        
+        for indicator in salesperson_indicators:
+            if indicator in combined_text:
+                salesperson_score += 2
+        
+        for indicator in customer_indicators:
+            if indicator in combined_text:
+                customer_score += 2
+        
+        # Strong indicators
+        if any(phrase in combined_text for phrase in ['calling from', 'speaking from', "i'm from"]):
+            salesperson_score += 10
+        
+        speaker_scores[speaker] = {
+            'salesperson_score': salesperson_score,
+            'customer_score': customer_score,
+            'total_chars': speaker_stats[speaker]['total_chars']
+        }
+    
+    # Determine roles - make it more deterministic
+    salesperson_speaker = None
+    customer_speaker = None
+    
+    if len(speaker_scores) >= 2:
+        # Add secondary sort by speaker ID for consistency
+        sorted_by_sales = sorted(speaker_scores.items(), 
+                                key=lambda x: (x[1]['salesperson_score'], x[0]), 
+                                reverse=True)
+        
+        # Always assign based on highest score, even if it's 0
+        salesperson_speaker = sorted_by_sales[0][0]
+        customer_speaker = sorted_by_sales[1][0]
+        
+        # Override only if there's strong evidence
+        for speaker, texts in speakers_text.items():
+            combined = ' '.join(texts).lower()
+            if 'i called you yesterday with regards to' in combined:
+                salesperson_speaker = speaker
+                customer_speaker = sorted_by_sales[0][0] if sorted_by_sales[0][0] != speaker else sorted_by_sales[1][0]
+                break
+    else:
+        # Single speaker or no speakers - use fallback
+        speakers = list(speaker_scores.keys())
+        if speakers:
+            salesperson_speaker = speakers[0]
+            customer_speaker = speakers[1] if len(speakers) > 1 else 'B'
+        else:
+            salesperson_speaker = 'A'
+            customer_speaker = 'B'
+    
+    # Calculate talk ratios
+    total_chars = sum(stats['total_chars'] for stats in speaker_stats.values())
+    
+    salesperson_chars = speaker_stats.get(salesperson_speaker, {}).get('total_chars', 0)
+    customer_chars = speaker_stats.get(customer_speaker, {}).get('total_chars', 0)
+    
+    if total_chars > 0:
+        salesperson_ratio = round((salesperson_chars / total_chars) * 100)
+        customer_ratio = round((customer_chars / total_chars) * 100)
+    else:
+        salesperson_ratio = 0
+        customer_ratio = 0
+    
+    # Format transcript
+    formatted_lines = []
+    for utterance in utterances:
+        speaker = utterance.get('speaker', 'Unknown')
+        text = utterance.get('text', '').strip()
+        
+        if speaker == salesperson_speaker:
+            label = "[Salesperson]"
+        elif speaker == customer_speaker:
+            label = "[Customer]"
+        else:
+            label = f"[Speaker {speaker}]"
+        
+        if text:
+            formatted_lines.append(f"{label}: {text}")
+    
+    formatted_transcript = "\n\n".join(formatted_lines)
+    talk_ratios = {
+        "salesperson": salesperson_ratio,
+        "customer": customer_ratio
+    }
+    
+    # Debug output
+    print(f"🎭 Speaker identification: Salesperson={salesperson_speaker}, Customer={customer_speaker}")
+    if speaker_scores:
+        for speaker, scores in speaker_scores.items():
+            print(f"   Speaker {speaker}: Sales={scores['salesperson_score']}, Customer={scores['customer_score']}")
+    
+    return formatted_transcript, talk_ratios
+
+def detect_call_type(formatted_transcript, raw_transcript):
+    """Detect the type of call based on conversation patterns"""
+    
+    text_lower = raw_transcript.lower()
+    
+    # Valid call types from Airtable
+    VALID_CALL_TYPES = FIELD_MAPPINGS["single_select"]["Call type"]
+    
+    indicators = {
+        'Follow up call': ['follow up', 'following up', 'call back', 'spoke earlier'],
+        'Discovery call': ['tell me about', 'what kind of', 'how many pets', 'looking for'],
+        'Closing call': ['ready to sign', 'move forward', 'get started', 'complete the application'],
+        'Support call': ['existing policy', 'current plan', 'claim', 'billing'],
+        'Cold outreach': ['calling from', 'introduce myself', 'reaching out', 'special offer']
+    }
+    
+    scores = {}
+    for call_type, keywords in indicators.items():
+        scores[call_type] = sum(1 for phrase in keywords if phrase in text_lower)
+    
+    call_type = max(scores, key=scores.get)
+    
+    if scores[call_type] == 0:
+        call_type = 'Follow up call'
+    
+    return call_type if call_type in VALID_CALL_TYPES else 'Follow up call'
+
+def process_with_openai(formatted_transcript: str, raw_transcript: str, 
+                        talk_ratios: Dict, audio_duration: float, 
+                        call_type: str, openai_api_key: str, 
+                        wrap_up_reason: str = '') -> Tuple[Dict, Dict]:
+    """Process transcript with OpenAI and return analysis fields"""
+    
+    analyzer = OpenAIAnalyzer(openai_api_key)
+    
+    ai_results = analyzer.analyze_call_comprehensive(formatted_transcript, raw_transcript)
+    ai_results = analyzer.validate_and_adjust_analysis(ai_results, talk_ratios, audio_duration)
+    
+    # ADD WRAP-UP ACCURACY ASSESSMENT
+    wrap_up_accuracy = "None provided"
+    wrap_up_accuracy_reason = "No wrap-up reason provided to assess"
+    
+    if wrap_up_reason and wrap_up_reason.strip():
+        wrap_up_assessment = analyzer.assess_wrap_up_accuracy(
+            formatted_transcript, 
+            wrap_up_reason, 
+            ai_results
+        )
+        wrap_up_accuracy = wrap_up_assessment['accuracy']
+        wrap_up_accuracy_reason = wrap_up_assessment['reason']
+    
+    unmapped_values = {"single_select": {}, "multi_select": {}}
+    
+    # Process single-select fields
+    sentiment = ai_results['sentiment']['label']
+    if sentiment not in FIELD_MAPPINGS["single_select"]["Sentiment"]:
+        sentiment = "Neutral"
+    
+    engagement_level = ai_results['engagement_quality']['level']
+    if engagement_level not in FIELD_MAPPINGS["single_select"]["Customer Engagement Level"]:
+        engagement_level = "Medium"
+    
+    opportunity_level = ai_results['opportunity_assessment']['level']
+    if opportunity_level not in FIELD_MAPPINGS["single_select"]["Opportunity Level"]:
+        opportunity_level = "Warm"
+    
+    risk_level = ai_results['risk_assessment']['level']
+    if risk_level not in FIELD_MAPPINGS["single_select"]["Risk Level"]:
+        risk_level = "Medium"
+    
+    # Process objective achieved
+    objective_raw = ai_results['call_objective_achieved']['achieved']
+    objective_achieved = VALUE_MAPPINGS["Objective achieved"].get(objective_raw.lower(), objective_raw)
+    if objective_achieved not in FIELD_MAPPINGS["single_select"]["Objective achieved"]:
+        objective_achieved = "Partial"
+    
+    # Process objection handling
+    objection_mapping = {
+        "price": "Cost-to-Value Justification",
+        "timing": "Highlight Urgency or Scarcity",
+        "trust": "Empathize & Validate",
+        "need": "Identify Hidden Needs",
+        "authority": "Clarify & Reframe",
+        "competition": "Competitor Comparison",
+        "features": "Value Demonstration",
+        "process": "Active Listening & Discovery",
+        "risk": "Risk Mitigation"
+    }
+    
+    # Initialize default values
+    objection_suggestion = "None"
+    objection_reason = "No significant objections detected"
+    objection_handling_score = None
+    objection_count = 0
+    objection_types_list = []  # For multi-select field
+
+    # Check if objections are actually present
+    if ai_results['objections']['present'] and ai_results['objections'].get('types'):
+        objection_handling_score = int(ai_results['objections'].get('handling_quality', 50))
+        objection_count = len(ai_results['objections'].get('specific_objections', []))
+        
+        # Process objection types for multi-select
+        for obj_type in ai_results['objections'].get('types', []):
+            # Capitalize first letter for multi-select field
+            formatted_type = obj_type.capitalize()
+            if formatted_type in FIELD_MAPPINGS["multi_select"].get("Objection types", []):
+                objection_types_list.append(formatted_type)
+        
+        # Get the primary objection for suggestion
+        if objection_types_list:
+            primary_objection = objection_types_list[0].lower()
+            if primary_objection in objection_mapping:
+                objection_suggestion = objection_mapping[primary_objection]
+                objection_reason = f"Customer raised {primary_objection} objections - {objection_suggestion} approach recommended"
+            else:
+                objection_suggestion = "Active Listening & Discovery"
+                objection_reason = f"Customer raised {', '.join(objection_types_list)} objections"
+    else:
+        # No objections - keep defaults
+        pass
+    
+    # Process key topics
+    key_topics = ai_results.get('key_topics', [])
+    if key_topics:
+        validated_topics = []
+        for topic in key_topics:
+            if topic in FIELD_MAPPINGS["multi_select"]["Key topics"]:
+                validated_topics.append(topic)
+            else:
+                print(f"  ⚠️ Topic '{topic}' not in Airtable options, skipping")
+        key_topics = validated_topics  # REASSIGN like question categories used to
+        print(f"  📝 Topics identified: {key_topics}")
+    
+    # Process question categories
+    question_categories = ai_results.get('question_categories', [])
+    if question_categories:
+        validated_categories = []
+        for cat in question_categories:
+            if cat in FIELD_MAPPINGS["multi_select"]["Question Categories"]:
+                validated_categories.append(cat)
+            else:
+                print(f"  ⚠️ Category '{cat}' not in Airtable options, skipping")
+        question_categories = validated_categories  # REASSIGN the variable
+        print(f"  📝 Question categories identified: {question_categories}")
+    
+    # Process other multi-select fields
+    risk_factors = ai_results['risk_assessment'].get('risk_factors', [])
+    sales_tactics = ai_results.get('sales_tactics_used', [])
+    
+    # Log what the AI selected
+    print(f"\n📊 AI Analysis Results:")
+    
+    if key_topics:
+        print(f"📊 Key Topics from AI:")
+        for topic in key_topics:
+            print(f"   • {topic}")
+    
+    if sales_tactics:
+        print(f"📊 Sales Tactics from AI:")
+        for tactic in sales_tactics:
+            print(f"   • {tactic}")
+    
+    if risk_factors:
+        print(f"📊 Risk Factors from AI:")
+        for factor in risk_factors:
+            print(f"   • {factor}")
+    
+    # Log objection handling info
+    print(f"📊 Objections detected: {ai_results['objections']['present']}")
+    if ai_results['objections']['present']:
+        print(f"   • Handling score: {objection_handling_score}/100")
+        print(f"   • Suggestion: {objection_suggestion}")
+        print(f"   • Reason: {objection_reason}")
+    
+    # Validate they're in our allowed list
+    validated_risk_factors = [rf for rf in risk_factors if rf in FIELD_MAPPINGS["multi_select"]["Risk Factors"]]
+    validated_sales_tactics = [st for st in sales_tactics if st in FIELD_MAPPINGS["multi_select"]["Sales Tactics Used"]]
+    
+    # Add "None" if no sales tactics were used
+    if not validated_sales_tactics:
+        validated_sales_tactics = ["None"]
+    
+    fields = {
+        "Key topics": key_topics,  # Now using the reassigned validated list
+        "Sentiment": sentiment,
+        "Sentiment score": int(ai_results['sentiment']['score']),
+        "Customer Questions": "\n".join(ai_results['customer_questions']) if ai_results['customer_questions'] else "No customer questions detected",
+        "Questions Count": int(len(ai_results['customer_questions'])),
+        "Question Categories": question_categories,  # Using the reassigned validated list
+        "Customer Engagement Score": int(ai_results['engagement_quality']['score']),
+        "Customer Engagement Level": engagement_level,
+        "Opportunity Score": int(ai_results['opportunity_assessment']['score']),
+        "Opportunity Level": opportunity_level,
+        "Risk Score": int(ai_results['risk_assessment']['score']),
+        "Risk Level": risk_level,
+        "Risk Factors": validated_risk_factors,
+        "Sales Tactics Used": validated_sales_tactics,
+        "Objective achieved": objective_achieved,
+        "Achievement reason": ai_results['call_objective_achieved']['explanation'][:500],
+        "AI Insights": ai_results.get('key_insights', '')[:500],
+        "Next Actions": ", ".join(ai_results.get('next_actions', [])[:3]),
+        "Wrap up accuracy": wrap_up_accuracy,
+        "Wrap up accuracy reason": wrap_up_accuracy_reason,
+        "Objection handling suggestion": objection_suggestion,
+        "Objection handling suggestion reason": objection_reason[:500],
+        "Objection count": objection_count,
+        "Objection types": objection_types_list,
+        "Talk Ratio (Customer)": talk_ratios['customer'] / 100,
+        "Audio duration": audio_duration
+    }
+    
+    # Validation: If objections exist, we must have a suggestion
+    if objection_count > 0 and objection_suggestion == "None":
+        print("⚠️ WARNING: Objections detected but no handling suggestion provided")
+        objection_suggestion = "Active Listening & Discovery"
+        objection_reason = "Objections detected - general active listening approach recommended"
+        fields["Objection handling suggestion"] = objection_suggestion
+        fields["Objection handling suggestion reason"] = objection_reason
+
+    # Only add objection handling score if there were objections
+    if objection_handling_score is not None:
+        fields["Objection handling score"] = objection_handling_score
+    
+    # Calculate the final sales performance score
+    performance_score, score_explanation = analyzer.calculate_sales_performance_score(fields)
+    
+    # Add the performance score fields
+    fields["Sales performance score"] = performance_score
+    fields["Performance score explanation"] = score_explanation
+    
+    # Log the performance score
+    print(f"🎯 Sales Performance Score: {performance_score}/100")
+    print(f"   📊 {score_explanation}")
+    
+    # Remove empty multi-select arrays
+    fields_to_remove = []
+    for field in ["Question categories", "Risk Factors", "Sales Tactics Used"]:  # NOT including Key topics
+        if field in fields:
+            if not fields[field] or (isinstance(fields[field], list) and len(fields[field]) == 0):
+                fields_to_remove.append(field)
+    
+    for field in fields_to_remove:
+        del fields[field]
+        print(f"  📝 Removed empty field: {field}")
+    
+    # Debug output
+    if "Key topics" in fields:
+        print(f"  📝 Key topics being sent: {fields['Key topics']} (type: {type(fields['Key topics'])})")
+    if "Question categories" in fields:
+        print(f"  📝 Question categories being sent: {fields['Question categories']}")
+    
+    return fields, unmapped_values
+
+
+# ================== MAIN PROCESSING ==================
+
+def process_single_record(airtable: AirtableManager, gemini: GeminiTranscriber, 
+                         record: Dict, openai_api_key: str):
+    """Process a single record for transcription and analysis"""
+    record_id = record['id']
+    name = record.get('fields', {}).get('Name', 'Unknown')
+    
+    # GET THE EXISTING WRAP-UP REASON
+    existing_wrap_up = record.get('fields', {}).get('Wrap up reason', '')
+    
+    print(f"\n🎵 Processing: {name}")
+    print(f"Record ID: {record_id}")
+    if existing_wrap_up:
+        print(f"📝 Existing wrap-up reason: {existing_wrap_up[:100]}...")
+    
+    airtable.update_record(record_id, {"Transcription status": "Processing"})
+    
+    audio_url = airtable.get_audio_file_url(record)
+    if not audio_url:
+        print("❌ No audio file URL found")
+        airtable.update_record(record_id, {"Transcription status": "Error"})
+        return
+    
+    result = gemini.transcribe_audio(audio_url)
+    
+    if result['success']:
+        raw_transcription = result['text']
+        utterances = result.get('utterances', [])
+        
+        if raw_transcription:
+            raw_transcription = raw_transcription.strip()
+            raw_transcription = raw_transcription.replace('\x00', '').replace('\r\n', '\n')
+        
+        formatted_transcript, talk_ratios = format_transcript_with_speakers(utterances)
+        call_type = detect_call_type(formatted_transcript, raw_transcription)
+        
+        ai_analysis, unmapped = process_with_openai(
+            formatted_transcript=formatted_transcript,
+            raw_transcript=raw_transcription,
+            talk_ratios=talk_ratios,
+            audio_duration=result.get('audio_duration', 0),
+            call_type=call_type,
+            openai_api_key=openai_api_key,
+            wrap_up_reason=existing_wrap_up
+        )
+        
+        # Track unmapped values
+        for field, value in unmapped["single_select"].items():
+            airtable.unmapped_values["single_select"][field] = value
+        for field, values in unmapped["multi_select"].items():
+            if field not in airtable.unmapped_values["multi_select"]:
+                airtable.unmapped_values["multi_select"][field] = []
+            airtable.unmapped_values["multi_select"][field].extend(values)
+        
+        fields_to_update = {
+            "Transcription": raw_transcription,
+            "Transcription status": "Completed",
+            "Formatted transcript": formatted_transcript,
+            "Audio duration": float(result.get('audio_duration', 0)),
+            "Confidence": round(float(result.get('confidence', 0)), 4),
+            "Talk Ratio (Sales)": talk_ratios['salesperson'] / 100,
+            "Talk Ratio (Customer)": talk_ratios['customer'] / 100,
+            "Call type": call_type,
+        }
+        
+        # Add AI analysis fields
+        fields_to_update.update(ai_analysis)
+        
+        # Debug what we're sending for question categories
+        if "Question Categories" in fields_to_update:
+            print(f"  📝 Question categories being sent: {fields_to_update['Question Categories']}")
+        
+        # Remove empty multi-select arrays
+        fields_to_remove = []
+        for field in ["Question Categories", "Risk Factors", "Sales Tactics Used"]:
+            if field in fields_to_update:
+                if not fields_to_update[field] or (isinstance(fields_to_update[field], list) and len(fields_to_update[field]) == 0):
+                    fields_to_remove.append(field)
+        
+        for field in fields_to_remove:
+            del fields_to_update[field]
+            print(f"  📝 Removed empty field: {field}")
+        
+        # Debug output
+        print(f"📝 Raw transcription length: {len(raw_transcription)} characters")
+        print(f"📊 Talk Ratios - Sales: {talk_ratios['salesperson']}%, Customer: {talk_ratios['customer']}%")
+        print(f"📞 Call type: {call_type}")
+        print(f"😊 Sentiment: {ai_analysis.get('Sentiment')} (Score: {ai_analysis.get('Sentiment score')}/100)")
+        print(f"💰 Opportunity: {ai_analysis.get('Opportunity Level')} (Score: {ai_analysis.get('Opportunity Score')}/100)")
+        print(f"🎯 Performance Score: {ai_analysis.get('Sales performance score')}/100")
+        if existing_wrap_up:
+            print(f"✅ Wrap-up accuracy: {ai_analysis.get('Wrap up accuracy')}")
+        
+        if airtable.update_record(record_id, fields_to_update):
+            print(f"✅ Successfully updated record: {name}")
+        else:
+            print(f"❌ Failed to update record: {name}")
+            print("🔄 Attempting to update fields individually...")
+            
+            successful_fields = []
+            failed_fields = []
+            
+            # Essential fields first
+            essential_fields = {
+                "Transcription": raw_transcription,
+                "Transcription status": "Completed"
+            }
+            
+            if airtable.update_record(record_id, essential_fields):
+                successful_fields.extend(essential_fields.keys())
+                print(f"✅ Essential fields updated")
+            
+            # Try other fields individually with better error tracking
+            for field_name, field_value in fields_to_update.items():
+                if field_name not in essential_fields:
+                    # Special handling for multi-select fields
+                    if field_name == "Key topics":
+                        # Debug what we're trying to send
+                        print(f"  🔍 Attempting Key topics: {field_value}")
+                        print(f"     Type: {type(field_value)}")
+                        if isinstance(field_value, list):
+                            print(f"     Items: {field_value}")
+                        
+                        # If it's a string, it might need to be a list
+                        if isinstance(field_value, str):
+                            # Try converting comma-separated string to list
+                            field_value = [topic.strip() for topic in field_value.split(',')]
+                            print(f"     Converted to list: {field_value}")
+                    
+                    if airtable.update_record(record_id, {field_name: field_value}):
+                        successful_fields.append(field_name)
+                        print(f"  ✅ {field_name}: Updated")
+                    else:
+                        failed_fields.append(field_name)
+                        print(f"  ❌ {field_name}: Failed (value type: {type(field_value)})")
+                        if isinstance(field_value, list):
+                            print(f"     List contents: {field_value}")
+            
+            print(f"\n📊 Update Summary:")
+            print(f"  Successful: {len(successful_fields)} fields")
+            print(f"  Failed: {len(failed_fields)} fields")
+            if failed_fields:
+                print(f"  Failed fields: {', '.join(failed_fields)}")
+    else:
+        airtable.update_record(record_id, {"Transcription status": "Error"})
+
+def main():
+    # Configuration
+    AIRTABLE_API_KEY = 'insert'
+    AIRTABLE_BASE_ID = 'insert'
+    TABLE_NAME = 'Sales calls'
+    GEMINI_API_KEY = 'insert'
+    OPENAI_API_KEY = 'insert'  # ADD YOUR OPENAI KEY HERE
+    
+    
+    # Initialize managers
+    airtable = AirtableManager(AIRTABLE_API_KEY, AIRTABLE_BASE_ID, TABLE_NAME)
+    gemini = GeminiTranscriber(GEMINI_API_KEY)
+    
+    # Get records that need transcription
+    print("🔍 Fetching records that need transcription...")
+    records = airtable.get_records_needing_transcription()
+    
+    if not records:
+        print("ℹ️  No records found that need transcription")
+        return
+    
+    print(f"Found {len(records)} records to process")
+    
+    # Process each record
+    for i, record in enumerate(records, 1):
+        print(f"\n{'='*50}")
+        print(f"Processing record {i} of {len(records)}")
+        process_single_record(airtable, gemini, record, OPENAI_API_KEY)
+        print(f"{'='*50}")
+    
+    # Report unmapped values at the end
+    airtable.report_unmapped_values()
+    
+    print(f"\n🎉 Finished processing {len(records)} records!")
+
+if __name__ == "__main__":
+    main()
