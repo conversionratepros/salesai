@@ -1,0 +1,93 @@
+<!-- templates/_frankie.html -->
+<style>
+    :root { --frankie-title-size: 18px; --frankie-text-size: 14px; }
+    .frankie-launcher{position:fixed;right:20px;bottom:20px;background:#3b82f6;color:#fff;border:0;border-radius:9999px;padding:12px 18px;font-size:14px;font-weight:700;box-shadow:0 8px 20px rgba(0,0,0,.18);cursor:pointer;z-index:9998;display:inline-flex;gap:8px;align-items:center}
+    .frankie-launcher:hover{filter:brightness(1.05)}
+    .frankie-panel{position:fixed;right:20px;bottom:86px;width:450px;max-width:min(92vw,700px);max-height:min(78vh,620px);background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 24px 48px rgba(0,0,0,.18);overflow:hidden;z-index:9999;display:none}
+    .frankie-panel.open{display:flex;flex-direction:column}
+    .frankie-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #f1f5f9;background:#f8fafc}
+    .frankie-header .title{font-size:var(--frankie-title-size);font-weight:700;letter-spacing:-.01em}
+    .frankie-close{border:0;background:transparent;cursor:pointer;font-size:18px;color:#6b7280}
+    .frankie-content{padding:20px 24px 28px;font-size:var(--frankie-text-size);line-height:1.6;overflow:auto}
+    .frankie-content h3{font-size:var(--frankie-title-size);font-weight:700;margin:20px 0 8px;color:#1a1a1a}
+    .frankie-content ul{margin:0 0 10px 1.1rem;padding:0}
+    .frankie-content li{margin:6px 0}
+    .frankie-footer{padding:10px 16px;border-top:1px solid #f1f5f9;display:flex;gap:8px;justify-content:flex-end;background:#fafbff}
+    .frankie-btn{border:1px solid #e5e7eb;background:#fff;border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer}
+    .frankie-btn.primary{background:#3b82f6;color:#fff;border-color:#3b82f6}
+    @media (max-width:520px){.frankie-panel{left:10px;right:10px;width:auto;bottom:82px}.frankie-launcher{right:10px;bottom:10px}}
+  </style>
+  
+  <button id="frankieLauncher" class="frankie-launcher">✨ Ask Frankie</button>
+  
+  <div id="frankiePanel" class="frankie-panel" aria-modal="true" role="dialog">
+    <div class="frankie-header">
+      <div class="title" id="frankieTitle">AI Summary of Conversion Movements</div>
+      <button class="frankie-close" aria-label="Close" id="frankieClose">×</button>
+    </div>
+    <div class="frankie-content" id="frankieContent">
+      <!-- initial/fallback content -->
+      <div class="muted">Generating overview…</div>
+    </div>
+    <div class="frankie-footer">
+      <button class="frankie-btn" id="frankieRefresh">Regenerate</button>
+      <button class="frankie-btn primary" id="frankieDeepDive">Deep analysis</button>
+    </div>
+  </div>
+  
+  <script>
+  (function(){
+    // Expect each page to set window.FRANKIE with:
+    // { title, summaryHTML, page, window:{from,to}, payload:{...} }
+    const cfg = window.FRANKIE || {};
+    const panel   = document.getElementById('frankiePanel');
+    const openBtn = document.getElementById('frankieLauncher');
+    const closeBtn= document.getElementById('frankieClose');
+    const content = document.getElementById('frankieContent');
+    const titleEl = document.getElementById('frankieTitle');
+    const refresh = document.getElementById('frankieRefresh');
+    const deepBtn = document.getElementById('frankieDeepDive');
+  
+    if (cfg.title) titleEl.textContent = cfg.title;
+    if (cfg.summaryHTML) content.innerHTML = cfg.summaryHTML;
+  
+    function open(){ panel.classList.add('open'); }
+    function close(){ panel.classList.remove('open'); }
+    openBtn.addEventListener('click', open);
+    closeBtn.addEventListener('click', close);
+  
+    // Small helper to call backend
+    async function askFrankie(kind){
+      try{
+        content.innerHTML = `<div class="muted">Thinking…</div>`;
+        const res = await fetch('{{ helpers.url("api_ask_frankie") }}', {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({
+            kind,                 // 'summary' | 'deep'
+            page: cfg.page || 'generic',
+            window: cfg.window || {},
+            payload: cfg.payload || {}
+          })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Request failed');
+        content.innerHTML = data.html || '<div class="muted">No response.</div>';
+      }catch(err){
+        content.innerHTML = `<div class="muted">AI unavailable: ${err.message}</div>`;
+      }
+    }
+  
+    // Wire the buttons
+    refresh.addEventListener('click', ()=> askFrankie('summary'));
+    deepBtn.addEventListener('click', ()=> askFrankie('deep'));
+  
+    // Auto-load summary the first time it opens if no summaryHTML provided
+    openBtn.addEventListener('click', ()=>{
+      if (!cfg.summaryHTML && !content.dataset.loaded){
+        content.dataset.loaded = '1';
+        askFrankie('summary');
+      }
+    });
+  })();
+  </script>

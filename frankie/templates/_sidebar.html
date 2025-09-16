@@ -1,0 +1,46 @@
+<style>
+    /* Minimal layout styles so other pages get the same look */
+    .sidebar{position:fixed;left:0;top:0;bottom:0;width:240px;background:#fff;border-right:1px solid #e0e0e0;display:flex;flex-direction:column;z-index:100}
+    .sidebar-header{padding:20px;border-bottom:1px solid #f0f0f0}
+    .brand-logo{display:flex;align-items:center;gap:12px;font-size:18px;font-weight:600;color:#1a1a1a}
+    .sidebar-nav{flex:1;padding:20px 0}
+    .nav-item{display:flex;align-items:center;gap:12px;padding:12px 20px;color:#666;text-decoration:none;font-size:14px;transition:.2s;position:relative}
+    .nav-item:hover{background:#f8f9fa;color:#333}
+    .nav-item.active{background:#f0f4ff;color:#667eea;font-weight:500}
+    .nav-item.active::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:#667eea}
+    .sidebar-footer{padding:20px;border-top:1px solid #f0f0f0}
+    .date-range-info{display:flex;flex-direction:column;gap:8px}
+    .main-content{margin-left:240px;min-height:100vh;background:#f5f5f5}
+    .main-container{max-width:1400px;margin:0 auto;padding:30px}
+  </style>
+  
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="brand-logo"><span>Frankie AI</span></div>
+    </div>
+  
+    <nav class="sidebar-nav">
+      <a href="{{ helpers.url('cro_dashboard') }}" class="nav-item">CRO Dashboard</a>
+      <a href="{{ helpers.url('audience_intent') }}" class="nav-item">Audience Intent</a>
+      <a href="{{ helpers.url('merchandise_dashboard') }}" class="nav-item">Merchandise Analysis</a>
+      <a href="{{ helpers.url('device_analysis') }}" class="nav-item">Device Analysis</a>
+      <a href="{{ helpers.url('channel_performance') }}" class="nav-item">Channel Performance</a>
+      <a href="{{ helpers.url('ai_manager') }}" class="nav-item{% if request.endpoint == 'ai_manager' %} active{% endif %}">AI eCommerce Manager</a>    
+    </nav>
+  
+    <div class="sidebar-footer">
+      <form method="get" action="">
+        <div class="date-range-info">
+          <span style="font-size:11px;color:#888;">Data Range</span>
+          <input type="date" name="from" value="{{ helpers.date_from() }}"
+                 style="width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:6px;">
+          <input type="date" name="to" value="{{ helpers.date_to() }}"
+                 style="width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:6px;">
+          <button type="submit"
+                  style="margin-top:10px;width:100%;padding:10px;border:1px solid #667eea;background:#667eea;color:#fff;border-radius:6px;cursor:pointer;">
+            Apply
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
