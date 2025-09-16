@@ -1,0 +1,90 @@
+/* ===== Frankie Base (global) ===== */
+
+/* Reset + typography */
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { height:100%; }
+body {
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+  background:#f5f5f5; color:#333; line-height:1.6;
+}
+
+/* Layout */
+.main-content { margin-left:240px; min-height:100vh; background:#f5f5f5; }
+.main-container { max-width:1400px; margin:0 auto; padding:30px; }
+
+/* Sidebar */
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:240px;background:#fff;border-right:1px solid #e0e0e0;display:flex;flex-direction:column;z-index:100}
+.sidebar-header{padding:20px;border-bottom:1px solid #f0f0f0}
+.brand-logo{display:flex;align-items:center;gap:12px;font-size:18px;font-weight:600;color:#1a1a1a}
+.sidebar-nav{flex:1;padding:20px 0}
+.nav-item{display:flex;align-items:center;gap:12px;padding:12px 20px;color:#666;text-decoration:none;font-size:14px;transition:.2s;position:relative}
+.nav-item:hover{background:#f8f9fa;color:#333}
+.nav-item.active{background:#f0f4ff;color:#667eea;font-weight:500}
+.nav-item.active::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:#667eea}
+.sidebar-footer{padding:20px;border-top:1px solid #f0f0f0}
+.date-range-info{display:flex;flex-direction:column;gap:8px}
+
+/* Cards / panels */
+.card{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:18px;box-shadow:0 1px 0 rgba(0,0,0,.02)}
+.grid{display:grid;gap:20px}
+.grid-2{grid-template-columns:1fr 1fr}
+.header-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.page-title{font-size:24px;font-weight:700;color:#1a1a1a;margin-bottom:6px}
+.subtle{font-size:12px;color:#888}
+.pill-btn{border:1px solid #e0e0e0;background:#fff;border-radius:9999px;padding:8px 12px;font-size:12px;cursor:pointer}
+.pill-btn:hover{background:#f8f9fa}
+
+/* Tables (shared) */
+table{width:100%;border-collapse:collapse}
+th{ text-align:left; padding:12px 20px; font-size:11px; font-weight:600; text-transform:uppercase; color:#888; background:#fafafa; letter-spacing:.5px; white-space:nowrap;}
+td{ padding:12px 20px; font-size:14px; color:#333; border-bottom:1px solid #f0f0f0; }
+tr:hover{ background:#f8f9fa; }
+
+/* Badges */
+.badge{ padding:3px 8px; border-radius:12px; font-size:10px; font-weight:600; text-transform:uppercase; white-space:nowrap; display:inline-block; }
+.badge-gray{ background:#f0f0f0; color:#666; }
+.badge-green{ background:#e8f5e9; color:#2e7d32; }
+.badge-orange{ background:#fff3e0; color:#e65100; }
+.badge-red{ background:#ffebee; color:#c62828; }
+
+/* ===== Ask Frankie widget (global) ===== */
+:root{ --frankie-title-size:18px; --frankie-text-size:14px; }
+
+.frankie-launcher{
+  position:fixed; right:20px; bottom:20px; z-index:9998;
+  display:inline-flex; align-items:center; gap:8px;
+  background:#3b82f6; color:#fff; border:0; border-radius:9999px;
+  padding:10px 14px; font-size:14px; font-weight:600; box-shadow:0 8px 20px rgba(0,0,0,.18);
+  cursor:pointer;
+}
+.frankie-launcher:hover{ filter:brightness(1.05); }
+
+.frankie-panel{
+  position:fixed; right:20px; bottom:76px; z-index:9999;
+  display:none; flex-direction:column;
+  width:540px; max-width:90vw; max-height:70vh; overflow:hidden;
+  background:#fff; border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 24px 48px rgba(0,0,0,.18);
+}
+.frankie-panel.open{ display:flex; }
+
+.frankie-panel-header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 16px; border-bottom:1px solid #f1f5f9; background:#f8fafc;
+}
+.frankie-title{ font-size:var(--frankie-title-size); font-weight:700; color:#111827; }
+.frankie-close{ border:0; background:transparent; cursor:pointer; font-size:18px; color:#6b7280; }
+
+.frankie-body{
+  flex:1 1 auto; overflow:auto; -webkit-overflow-scrolling:touch;
+  padding:18px 28px 28px; font-size:var(--frankie-text-size); line-height:1.6; color:#374151;
+}
+.frankie-body h3{ font-size:var(--frankie-title-size); font-weight:700; margin:10px 0 8px; color:#1a1a1a; }
+.frankie-body ul{ margin:0 0 14px 1.5rem; padding:0; }
+.frankie-body li{ margin:6px 0; line-height:1.55; }
+.frankie-body p{ margin:0 0 14px; }
+.frankie-body .muted{ color:#6b7280; }
+
+@media (max-width:520px){
+  .frankie-panel{ right:10px; left:10px; width:auto; bottom:72px; }
+  .frankie-launcher{ right:10px; bottom:10px; }
+}
