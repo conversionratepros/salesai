@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AI eCommerce Manager</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    /* Keep styling consistent with your other pages */
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background:#f5f5f5; color:#333; }
+    .sidebar { position: fixed; left:0; top:0; bottom:0; width:240px; background:#fff; border-right:1px solid #e0e0e0; display:flex; flex-direction:column; z-index:100; }
+    .sidebar-header { padding:20px; border-bottom:1px solid #f0f0f0; }
+    .brand-logo { font-size:18px; font-weight:600; color:#1a1a1a; }
+    .sidebar-nav { flex:1; padding:20px 0; }
+    .nav-item { display:flex; align-items:center; gap:12px; padding:12px 20px; color:#666; text-decoration:none; font-size:14px; transition:.2s; position:relative; }
+    .nav-item:hover { background:#f8f9fa; color:#333; }
+    .nav-item.active { background:#f0f4ff; color:#667eea; font-weight:500; }
+    .nav-item.active::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:#667eea; }
+    .sidebar-footer { padding:20px; border-top:1px solid #f0f0f0; }
+    .main-content { margin-left:240px; min-height:100vh; background:#f5f5f5; }
+    .main-container { max-width:1400px; margin:0 auto; padding:30px; }
+
+    .panel { background:#fff; border:1px solid #e0e0e0; border-radius:12px; padding:20px; }
+    .titlebar { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+    .titlebar h1 { font-size:24px; font-weight:700; margin:0; }
+    .refresh-link { font-size:12px; color:#667eea; text-decoration:none; border:1px solid #e0e0e0; padding:6px 10px; border-radius:14px; }
+    .section-title { font-size:16px; font-weight:600; margin-bottom:10px; }
+    .muted { color:#666; font-size:13px; }
+    .insights-box { padding:16px; background:#fafafa; border:1px solid #eee; border-radius:8px; line-height:1.6; }
+    .meta { font-size:12px; color:#888; margin-bottom:10px; }
+    .btn { display:inline-block; font-size:12px; border:1px solid #ddd; background:#fff; border-radius:6px; padding:8px 10px; cursor:pointer; text-decoration:none; color:#333; }
+    .btn:hover { background:#f8f9fa; }
+    .row { display:flex; gap:20px; align-items:flex-start; }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="brand-logo">Frankie AI</div>
+    </div>
+    {% include '_sidebar.html' %}
+    <div class="sidebar-footer">
+      <form method="get" action="">
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <span style="font-size:11px;color:#888;">Data Range</span>
+          <input type="date" name="from" value="{{ date_from }}" style="width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:6px;">
+          <input type="date" name="to" value="{{ date_to }}" style="width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:6px;">
+          <button type="submit" class="btn" style="background:#667eea;color:#fff;border-color:#667eea;">Apply</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="main-container">
+
+      <!-- Titlebar -->
+      <div class="titlebar">
+        <h1>AI eCommerce Manager</h1>
+        <a class="refresh-link" href="{{ helpers.url('ai_manager') }}&refresh=1">Refresh data</a>
+      </div>
+
+      <!-- Overwatch Insights (placeholder for now) -->
+      <div class="panel">
+        <div class="row" style="justify-content:space-between;">
+          <div>
+            <div class="section-title">Overwatch Insights</div>
+            <div class="muted">Weekly wrap-up across Audience Intent, Merchandise, Devices, and Channels.</div>
+          </div>
+          <div>
+            <a class="btn" href="{{ helpers.url('ai_manager') }}&ai=1">Generate insights</a>
+          </div>
+        </div>
+
+        <div class="meta">
+          Time window: last 7 days ({{ last7_from }} → {{ last7_to }})
+        </div>
+
+        <div class="insights-box">
+          {% if overwatch_text %}
+            {{ overwatch_text | safe }}
+          {% else %}
+            <em>Click “Generate insights” to create a weekly roundup: What’s happening · What to be aware of · Alerts · Wins.</em>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</body>
+</html>

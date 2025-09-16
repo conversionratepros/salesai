@@ -1,0 +1,1972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frankie AI Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333333;
+            line-height: 1.6;
+        }
+
+        /* Header Bar */
+        .header-bar {
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .brand {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        /* Main Container */
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+
+        /* Title Section with Scanner */
+        .title-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 30px;
+        }
+
+        .title-group {
+            flex: 1;
+        }
+
+        .main-title {
+            font-size: 28px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            font-size: 15px;
+            color: #666666;
+        }
+
+        /* Tooltip styles */
+        .tooltip-icon:hover + .tooltip-box,
+        .tooltip-box:hover {
+            display: block !important;
+        }
+
+        th:has(.tooltip-icon) {
+            position: relative;
+        }
+
+        .data-table th span[title] {
+            border-bottom: 1px dotted #888;
+        }
+
+
+        /* Live Scanner */
+        .live-scanner {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+            background-color: rgba(34, 197, 94, 0.08);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+            border-radius: 20px;
+            margin-top: 5px;
+        }
+
+        .green-pulse {
+            width: 10px;
+            height: 10px;
+            background-color: #22c55e;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6); }
+            50% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+
+        .scanner-label {
+            color: #22c55e;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #888888;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+
+        .stat-number {
+            font-size: 28px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        /* Enhanced Panel for Tables */
+        .enhanced-panel {
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .panel-icon {
+            font-size: 24px;
+        }
+
+        .panel-title-group {
+            flex: 1;
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+        }
+
+        .panel-subtitle {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .data-table {
+            width: 100%;
+            margin-top: 15px;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #888;
+            border-bottom: 2px solid #f0f0f0;
+            letter-spacing: 0.5px;
+            white-space: nowrap; /* Prevent header wrapping */
+        }
+
+        .data-table td {
+            padding: 10px 8px; /* Reduced from 12px */
+            font-size: 13px; /* Reduced from 14px */
+            color: #333;
+            border-bottom: 1px solid #f5f5f5;
+            white-space: nowrap; /* Prevent wrapping in most cells */
+        }
+
+        /* Special handling for product name column */
+        .data-table td:first-child {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 300px; /* Adjust based on your needs */
+        }
+
+        /* Ensure segment badges never wrap */
+        .data-table td:last-child {
+            white-space: nowrap;
+        }
+
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .metric-highlight {
+            font-weight: 600;
+            color: #e65100;
+        }
+
+        .metric-low {
+            color: #666;
+            font-size: 13px;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999999;
+            font-size: 14px;
+        }
+
+        /* Data Table */
+        .table-wrapper {
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .table-header-bar {
+            padding: 20px;
+            background-color: #fafafa;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-heading {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .model-link {
+            font-size: 14px;
+            color: #000000;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .model-link:hover {
+            color: #16a34a;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 12px 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #888888;
+            background-color: #fafafa;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 14px 20px;
+            font-size: 14px;
+            color: #333333;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        tr:hover {
+            background-color: #fafafa;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Table row styling */
+        tbody tr.even-row {
+            background-color: transparent;
+        }
+
+        tbody tr.odd-row {
+            background-color: #fafafa;
+        }
+
+        tbody tr:hover {
+            background-color: #f0f0f0 !important;
+        }
+
+        /* Remove default alternating colors */
+        tbody tr:nth-child(even) {
+            background-color: transparent;
+        }
+
+        tbody tr {
+            transition: background-color 0.2s ease;
+        }
+
+        tbody tr:hover {
+            background-color: #f0f0f0 !important;
+        }
+
+        /* Ensure table borders are always visible */
+        .table-wrapper {
+            background: #ffffff;
+            border: 1px solid #e0e0e0 !important;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        tbody td {
+            border-bottom: 1px solid #f0f0f0 !important;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none !important;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: #ffffff;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            padding: 25px 30px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .close-button {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #999;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .close-button:hover {
+            color: #333;
+        }
+
+        .modal-body {
+            padding: 30px;
+        }
+        
+        /* Filter buttons styling */
+        .filter-btn {
+            padding: 8px 16px;
+            border: 1px solid #e0e0e0;
+            background: #ffffff;
+            border-radius: 20px;  /* Full pill shape */
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 500;
+            color: #666;
+        }
+
+        .filter-btn:hover {
+            background: #f8f9fa;
+            border-color: #d0d0d0;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .filter-btn-active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .filter-btn-active:hover {
+            background: #5a6fd8;
+            border-color: #5a6fd8;
+        }
+
+        /* Update badge styles when inside active filter */
+        .filter-btn-active .badge {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+
+        /* Keep original badge colors for inactive buttons */
+        .filter-btn .badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        /* Ensure table maintains full width */
+        .table-wrapper {
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+            min-width: 100%;  /* Add this */
+        }
+
+        .table-wrapper table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;  /* Add this - forces consistent column widths */
+        }
+
+        /* Ensure the tbody maintains layout when filtered */
+        .table-wrapper tbody {
+            min-height: 200px;  /* Prevents collapse when few items */
+            display: table-row-group;
+        }
+
+        /* CSS for pagination */
+
+        .page-btn {
+        padding: 4px 8px;
+        min-width: 32px;
+        border: 1px solid #ddd;
+        background: white;
+        border-radius: 4px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        }
+
+        .page-btn:hover {
+            background: #f5f5f5;
+            border-color: #999;
+        }
+
+        .page-btn-active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .page-btn-active:hover {
+            background: #5a6fd8;
+            border-color: #5a6fd8;
+        }
+
+        /* When filter button contains a badge, no extra padding needed */
+        .filter-btn .badge {
+            margin: 0;
+        }
+        .badge-gray {
+            background-color: #f0f0f0;
+            color: #666666;
+        }
+
+        .badge {
+            padding: 3px 8px; /* Reduced padding */
+            border-radius: 12px;
+            font-size: 10px; /* Smaller font */
+            font-weight: 600;
+            text-transform: uppercase;
+            white-space: nowrap; /* Ensure no wrapping */
+            display: inline-block;
+        }
+
+        .badge-green {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .badge-orange {
+            background-color: #fff3e0;
+            color: #e65100;
+        }
+
+        .badge-red {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        /* Sidebar Styles */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 240px;
+            background: #ffffff;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 20px 0;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            color: #666;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .nav-item:hover {
+            background: #f8f9fa;
+            color: #333;
+        }
+
+        .nav-item.active {
+            background: #f0f4ff;
+            color: #667eea;
+            font-weight: 500;
+        }
+
+        .nav-item.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: #667eea;
+        }
+
+        .nav-item.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .nav-icon {
+            font-size: 18px;
+            width: 24px;
+            text-align: center;
+        }
+
+        .coming-soon {
+            margin-left: auto;
+            font-size: 10px;
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 10px;
+            color: #888;
+        }
+
+        .sidebar-footer {
+            padding: 20px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .date-range-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        /* Adjust main content to account for sidebar */
+        .main-content {
+            margin-left: 240px;
+            min-height: 100vh;
+            background: #f5f5f5;
+        }
+
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+
+        /* Remove the old header bar styles since sidebar handles branding */
+        .header-bar {
+            display: none;
+        }
+
+        .ai-insights-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);  /* Pink-coral gradient */
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);  /* Blue-cyan gradient */
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);  /* Green-teal gradient */
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Add subtle animation */
+        .ai-insights-section::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(
+                45deg,
+                transparent,
+                rgba(255, 255, 255, 0.1),
+                transparent
+            );
+            animation: shimmer 3s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+        }
+
+        .ai-insights-content {
+            position: relative;
+            z-index: 1;
+            color: white;
+        }
+
+        .ai-insights-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .ai-insights-title {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .ai-insights-timestamp {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .ai-insights-text {
+            font-size: 14px;
+            line-height: 1.6;
+            opacity: 0.95;
+        }
+
+        .insight-bullet {
+            margin-bottom: 12px;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .insight-bullet::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Header -->
+    <div class="header-bar">
+        <div class="brand">Frankie AI</div>
+    </div>
+    <!-- Sidebar Navigation -->
+    {% include '_sidebar.html' %}
+    <!-- Main Content Area -->
+    <div class="main-content">
+        <div class="main-container">
+        <!-- Dashboard Title with Live Scanner -->
+        <div class="title-section">
+            <div class="title-group">
+                <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <h1 class="main-title">Merchandise Analysis</h1>
+                    <a href="/merchandise?from={{ date_from }}&to={{ date_to }}&refresh=1"
+                       style="font-size:12px; color:#667eea; text-decoration:none; border:1px solid #e0e0e0; padding:6px 10px; border-radius:14px;">
+                      Refresh data
+                    </a>
+                  </div>
+                <p class="subtitle">Real-time insights and optimization opportunities for your products</p>
+            </div>
+        </div>
+
+        <!-- Key Metrics -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Revenue</div>
+                <div class="stat-number">R{{ "{:,.0f}".format(insights.total_revenue) }}</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-label">Total Views</div>
+                <div class="stat-number">{{ "{:,}".format(insights.total_views) }}</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-label">Total Products</div>
+                <div class="stat-number">{{ insights.total_products }}</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-label">Average Conversion</div>
+                <div class="stat-number">{{ "{:.1%}".format(insights.avg_conversion) }}</div>
+            </div>
+        </div>
+
+        <!-- Revenue Charts Section -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+            <!-- Top 20 by Total Revenue -->
+            <div style="background: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px;">
+                <h3 style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 15px;">Top 20 Products by Total Revenue</h3>
+                <div style="position: relative; height: 300px;">
+                    <canvas id="revenueChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Top 20 by Revenue Efficiency -->
+            <div style="background: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px;">
+                <h3 style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 15px;">Top 20 Products by Revenue per View</h3>
+                <div style="position: relative; height: 300px;">
+                    <canvas id="efficiencyChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Frankie AI Revenue Summary -->
+        <div style="background: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <div style="padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+                <h4 style="font-size: 14px; font-weight: 600; color: #333; margin-bottom: 12px;">AI Revenue Insights</h4>
+                <div id="revenueSummary" style="color: #555; font-size: 14px; line-height: 1.6;">
+                    <ul style="margin: 0; padding-left: 20px;">
+                        <li style="margin-bottom: 8px;">Loading revenue analysis...</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div style="background: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="font-size: 18px; font-weight: 600; color: #1a1a1a; margin: 0;">Conversion Funnel Analysis</h3>
+                <div style="display: flex; gap: 20px; font-size: 12px;">
+                    <span style="display: flex; align-items: center; gap: 5px;">
+                        <div style="width: 12px; height: 12px; border: 2px solid #28a745; border-radius: 2px;"></div>
+                        <span>Healthy</span>
+                        <span style="color: #666; font-size: 11px;">(P ≥ 60th percentile, C→P ≥ 60th percentile)</span>
+                    </span>
+                    <span style="display: flex; align-items: center; gap: 5px;">
+                        <div style="width: 12px; height: 12px; border: 2px solid #ffc107; border-radius: 2px;"></div>
+                        <span>Moderate</span>
+                        <span style="color: #666; font-size: 11px;">(P ≥ 30th percentile OR C→P ≥ 30th percentile)</span>
+                    </span>
+                    <span style="display: flex; align-items: center; gap: 5px;">
+                        <div style="width: 12px; height: 12px; border: 2px solid #dc3545; border-radius: 2px;"></div>
+                        <span>Needs Attention</span>
+                        <span style="color: #666; font-size: 11px;">(Below thresholds)</span>
+                    </span>
+                </div>
+            </div>
+            <div style="margin-top: 2px; margin-bottom: 5px; padding: 10px; background: #f8f9fa; border-radius: 6px; font-size: 11px; color: #666;">
+                <strong>How we classify funnels:</strong> Based on your top 20 products by revenue efficiency. 
+                <strong>P</strong> = Purchase Rate (purchases ÷ views), 
+                <strong>C→P</strong> = Cart-to-Purchase Rate (purchases ÷ cart adds). 
+                Products meeting or exceeding the median rates of your top performers are marked as "Healthy".
+            </div>
+            <!-- Top 10 Products by Revenue -->
+            <div style="margin-bottom: 30px;">
+                <h4 style="font-size: 14px; color: #666; margin-bottom: 15px;">Top 10 Products by Revenue - Funnel Comparison</h4>
+                <div id="productFunnelsRevenue" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px;">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+            </div>
+            
+            <!-- Top 10 Products by Traffic -->
+            <div style="margin-bottom: 30px;">
+                <h4 style="font-size: 14px; color: #666; margin-bottom: 15px;">Top 10 Products by Traffic - Funnel Comparison</h4>
+                <div id="productFunnelsTraffic" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px;">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+            </div>
+            
+            <!-- AI Funnel Insights -->
+            <div style="padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+                <h4 style="font-size: 14px; font-weight: 600; color: #333; margin-bottom: 12px;">Funnel Insights</h4>
+                <div id="funnelInsights" style="color: #555; font-size: 14px; line-height: 1.6;">
+                    <ul style="margin: 0; padding-left: 20px;">
+                        <li style="margin-bottom: 8px;">Loading funnel analysis...</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Need Attention Enhanced Section -->
+<div class="enhanced-panel">
+    <div class="panel-header">
+        <div class="panel-icon">⚠️</div>
+        <div class="panel-title-group">
+            <h3 class="panel-title">Need Attention</h3>
+            <p class="panel-subtitle">High-traffic products with conversion issues (Top 25% by views: {{ insights.views_threshold }}+ views)</p>
+        </div>
+    </div>
+    
+    {% if insights.carted_not_purchased or insights.not_carted %}
+        
+        <!-- Carted but Not Purchased Section -->
+        {% if insights.carted_not_purchased %}
+        <div style="margin-bottom: 30px;"> <!-- Increased margin from 20px to 30px -->
+            <h4 style="font-size: 14px; font-weight: 600; color: #000000; margin-bottom: 10px;">
+                Carted but Low Purchase Rate (High Cart Abandonment)
+            </h4>
+            <p style="font-size: 12px; color: #666; margin-bottom: 10px;">
+                Target cart-to-purchase rate: {{ "{:.1%}".format(insights.carted_not_purchased[0].target_cart_conversion) if insights.carted_not_purchased else "70%" }} 
+                (based on your top 20 efficient products)
+            </p>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40%;">Product Name</th>
+                        <th style="width: 15%;">Views</th>
+                        <th style="width: 15%;">Cart Rate</th>
+                        <th style="width: 15%;">Cart→Purchase</th>
+                        <th style="width: 15%;">Revenue Lost (?)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in insights.carted_not_purchased %}
+                    <tr>
+                        <td style="font-weight: 500;">{{ product.item_name[:40] }}{% if product.item_name|length > 40 %}...{% endif %}</td>
+                        <td>{{ "{:,}".format(product.items_viewed) }}</td>
+                        <td style="color: #28a745;">{{ "{:.1%}".format(product.view_to_cart_rate) }}</td>
+                        <td style="color: #dc3545; font-weight: 600;">{{ "{:.1%}".format(product.cart_to_purchase_rate) }}</td>
+                        <td style="color: #e65100; font-weight: 600;">R{{ "{:,.0f}".format(product.lost_revenue) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+        
+        <!-- Not Carted Section -->
+        {% if insights.carted_not_purchased %}
+        <div style="margin-bottom: 30px;"> <!-- Increased margin from 20px to 30px -->
+            <h4 style="font-size: 14px; font-weight: 600; color: #000000; margin-bottom: 10px;">
+                Low Cart and Purchase Rate (High Product Abandonment)
+            </h4>
+            <p style="font-size: 12px; color: #666; margin-bottom: 10px;">
+                Target cart-to-purchase rate: {{ "{:.1%}".format(insights.carted_not_purchased[0].target_cart_conversion) if insights.carted_not_purchased else "70%" }} 
+                (based on your top 20 efficient products)
+            </p>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40%;">Product Name</th>
+                        <th style="width: 15%;">Views</th>
+                        <th style="width: 15%;">Cart Rate</th>
+                        <th style="width: 15%;">Cart→Purchase</th>
+                        <th style="width: 15%;">Revenue Lost (?)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in insights.not_carted %}
+                    <tr>
+                        <td style="font-weight: 500;">{{ product.item_name[:40] }}{% if product.item_name|length > 40 %}...{% endif %}</td>
+                        <td style="color: #28a745; font-weight: 600;">{{ "{:,}".format(product.items_viewed) }}</td>
+                        <td style="color: #dc3545; font-weight: 600;">{{ "{:.1%}".format(product.view_to_cart_rate) }}</td>
+                        <td style="color: #dc3545;">{{ "{:.1%}".format(product.view_to_purchase_rate) }}</td>
+                        <td>R{{ "{:,.0f}".format(product.item_revenue) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <p style="font-size: 12px; color: #666; margin-top: 8px; font-style: italic;">
+                Action: Review product images, descriptions, and pricing - these products aren't compelling visitors to add to cart
+            </p>
+        </div>
+        {% endif %}
+        
+    {% else %}
+        <div class="no-data">All high-traffic products are converting well!</div>
+    {% endif %}
+</div>
+
+        <!-- Hidden Gems Enhanced Section -->
+        <div class="enhanced-panel">
+            <div class="panel-header">
+                <div class="panel-icon">💎</div>
+                <div class="panel-title-group">
+                    <h3 class="panel-title">Hidden Gems</h3>
+                    <p class="panel-subtitle">Low traffic products with exceptional conversion rates - increase exposure for quick wins</p>
+                </div>
+            </div>
+            
+            {% if insights.hidden_gems %}
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Product Name</th>
+                            <th>Views</th>
+                            <th>Cart Rate</th>
+                            <th>Conv Rate</th>
+                            <th>Revenue</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for product in insights.hidden_gems %}
+                        <tr>
+                            <td style="font-weight: 500;">{{ product.item_name[:40] }}{% if product.item_name|length > 40 %}...{% endif %}</td>
+                            <td class="metric-low">{{ "{:,}".format(product.items_viewed) if product.items_viewed else "0" }}</td>
+                            <td>{{ "{:.1%}".format(product.view_to_cart_rate) if product.view_to_cart_rate else "0.0%" }}</td>
+                            <td class="metric-highlight">{{ "{:.1%}".format(product.view_to_purchase_rate) }}</td>
+                            <td style="color: #e65100;">R{{ "{:,.0f}".format(product.item_revenue) if product.item_revenue else "0" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="no-data">No hidden gems identified - all high-converting products are already getting good traffic!</div>
+            {% endif %}
+        </div>
+
+        <!-- Performance Table -->
+<div class="table-wrapper">
+    <div class="table-header-bar">
+        <h3 class="table-heading">Product Performance Details</h3>
+        <a href="#" class="model-link" onclick="openModal(event)">How we classify your products</a>
+    </div>
+    
+    <!-- Filter and Row Controls -->
+<div style="padding: 15px 20px 25px 20px; background-color: #ffffff; border-bottom: 1px solid #e0e0e0;">
+    <!-- Filter Row -->
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <!-- Left side: Filters -->
+        <div style="padding: 15px 20px; background-color: #ffffff; border-bottom: 1px solid #e0e0e0;">
+            <!-- Filter Row -->
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <!-- Left side: Filters -->
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <span style="font-size: 13px; color: #666; margin-right: 8px;">Filter by segment:</span>
+            <button onclick="filterTable('all', event)" class="filter-btn filter-btn-active" id="filter-all">
+                All Products
+            </button>
+            <button onclick="filterTable('Stars', event)" class="filter-btn" id="filter-stars">
+                Stars
+            </button>
+            <button onclick="filterTable('Hidden Gems', event)" class="filter-btn" id="filter-hidden">
+                Hidden Gems
+            </button>
+            <button onclick="filterTable('Revenue Drivers', event)" class="filter-btn" id="filter-revenue">
+                Revenue Drivers
+            </button>
+            <button onclick="filterTable('Needs Attention', event)" class="filter-btn" id="filter-attention">
+                Needs Attention
+            </button>
+            <button onclick="filterTable('Underperformers', event)" class="filter-btn" id="filter-under">
+                Underperformers
+            </button>
+        </div>
+        
+        <!-- Right side: Row selector, count, and export -->
+<div style="display: flex; gap: 15px; align-items: center;">
+    <div style="display: flex; gap: 10px; align-items: center;">
+        <span style="font-size: 12px; color: #666;">Show:</span>
+        <select id="rowsPerPage" onchange="changeRowsPerPage()" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+            <option value="20">20 rows</option>
+            <option value="50">50 rows</option>
+            <option value="100">100 rows</option>
+            <option value="all">All rows</option>
+        </select>
+    </div>
+    <span style="font-size: 12px; color: #888;" id="filter-count">
+        Showing 1-20 of {{ products|length }} products
+    </span>
+    <!-- Export button -->
+    <button onclick="exportToCSV()" title="Export to CSV" style="padding: 6px 10px; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <span style="font-size: 12px;">Export</span>
+    </button>
+</div>
+</div>
+<div style="height: 15px; background-color: #ffffff;"></div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 20%;">Product Name</th>
+                        <th style="width: 10%;">Views</th>
+                        <th style="width: 10%;">Cart Adds</th>
+                        <th style="width: 10%;">Purchases</th>
+                        <th style="width: 12%;">Revenue</th>
+                        <th style="width: 8%;">Cart Rate</th>
+                        <th style="width: 8%;">Conv Rate</th>
+                        <th style="width: 7%;">Rev/View</th>
+                        <th style="width: auto;">Segment</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in products %}
+                    <tr>
+                        <td style="font-weight: 500;">{{ product.item_name }}</td>
+                        <td>{{ "{:,}".format(product.items_viewed) }}</td>
+                        <td>{{ product.items_added_to_cart }}</td>
+                        <td>{{ product.items_purchased }}</td>
+                        <td>R{{ "{:,.2f}".format(product.item_revenue) }}</td>
+                        <td>{{ "{:.1%}".format(product.items_added_to_cart / product.items_viewed) if product.items_viewed > 0 else "0%" }}</td>
+                        <td>{{ "{:.1%}".format(product.items_purchased / product.items_viewed) if product.items_viewed > 0 else "0%" }}</td>
+                        <td>R{{ "{:,.0f}".format(product.item_revenue / product.items_viewed) if product.items_viewed > 0 else "0" }}</td>
+                        <td>
+                            {% if product.segment == 'Stars' %}
+                                <span class="badge badge-green">{{ product.segment }}</span>
+                            {% elif product.segment == 'Hidden Gems' %}
+                                <span class="badge badge-orange">{{ product.segment }}</span>
+                            {% elif product.segment == 'Needs Attention' %}
+                                <span class="badge badge-red">{{ product.segment }}</span>
+                            {% else %}
+                                <span class="badge badge-gray">{{ product.segment }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            <!-- Pagination controls at bottom of table -->
+            <div style="padding: 15px 20px; background-color: #fafafa; border-top: 1px solid #e0e0e0; display: flex; justify-content: center; align-items: center;">
+                <div id="paginationControls" style="display: flex; gap: 5px; align-items: center;">
+                    <!-- Pagination buttons will be added here by JavaScript -->
+                </div>
+            </div>
+        </div>  <!-- This closes table-wrapper -->
+
+    <!-- Modal for Classification Model -->
+<div id="modelModal" class="modal-overlay" onclick="closeModalBackground(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2 class="modal-title">How We Classify Your Products</h2>
+            <button class="close-button" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <h3 style="font-size: 16px; margin-bottom: 15px; color: #333;">Product Segmentation Logic</h3>
+            
+            <div style="margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                    <span class="badge badge-green">STARS</span>
+                    <span style="color: #666; font-size: 14px;">High revenue (top 25%) AND high conversion (top 25%)</span>
+                </div>
+                <p style="margin-left: 80px; color: #888; font-size: 13px;">
+                    Your best performers - feature prominently everywhere
+                </p>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                    <span class="badge badge-orange">HIDDEN GEMS</span>
+                    <span style="color: #666; font-size: 14px;">High conversion (top 25%) but low traffic (bottom 50%)</span>
+                </div>
+                <p style="margin-left: 120px; color: #888; font-size: 13px;">
+                    Converting well but need more exposure - quick wins
+                </p>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                    <span class="badge badge-gray">GROWTH OPPORTUNITIES</span>
+                    <span style="color: #666; font-size: 14px;">Decent revenue OR conversion + good cart engagement (10%+)</span>
+                </div>
+                <p style="margin-left: 180px; color: #888; font-size: 13px;">
+                    Showing promise - optimize and increase visibility
+                </p>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                    <span class="badge badge-red">NEEDS ATTENTION</span>
+                    <span style="color: #666; font-size: 14px;">High traffic (top 50%) but poor conversion (bottom 50%)</span>
+                </div>
+                <p style="margin-left: 140px; color: #888; font-size: 13px;">
+                    Getting views but not converting - review pricing/presentation
+                </p>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                    <span class="badge badge-gray">UNDERPERFORMERS</span>
+                    <span style="color: #666; font-size: 14px;">Low traffic, low conversion, low revenue</span>
+                </div>
+                <p style="margin-left: 150px; color: #888; font-size: 13px;">
+                    Consider discontinuing or major overhaul
+                </p>
+            </div>
+            
+            <div style="margin-top: 30px; padding: 15px; background: #f8f9fa; border-radius: 6px;">
+                <h4 style="font-size: 14px; margin-bottom: 10px; color: #333;">Key Metrics Used:</h4>
+                <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #666;">
+                    <li><strong>Revenue:</strong> Total product revenue generated</li>
+                    <li><strong>Conversion Rate:</strong> Percentage of viewers who purchase</li>
+                    <li><strong>Cart Engagement:</strong> Percentage of viewers who add to cart</li>
+                    <li><strong>Traffic:</strong> Total product page views</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- Chart.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script type="text/javascript">
+        // Wait for the page to load
+        window.addEventListener('load', function() {
+            try {
+                // Get the products data that was rendered by the server
+                const __PD = JSON.parse('{{ products | tojson | safe }}');
+                const productsData = Array.isArray(__PD) ? __PD : [];
+
+                // Calculate revenue per view for each product
+                productsData.forEach(p => {
+                    p.revenue_per_view = p.items_viewed > 0 ? p.item_revenue / p.items_viewed : 0;
+                });
+                
+                // Sort by total revenue and take top 20
+                const topByRevenue = [...productsData]
+                    .sort((a, b) => b.item_revenue - a.item_revenue)
+                    .slice(0, 20);
+                
+                // Sort by revenue per view and take top 20 (excluding those with very low views)
+                const topByEfficiency = [...productsData]
+                    .filter(p => p.items_viewed >= 50)  // Minimum 50 views for relevance
+                    .sort((a, b) => b.revenue_per_view - a.revenue_per_view)
+                    .slice(0, 20);
+                
+                // Create Total Revenue Chart
+                const revenueCtx = document.getElementById('revenueChart');
+                if (revenueCtx) {
+                    new Chart(revenueCtx.getContext('2d'), {
+                        type: 'bar',
+                        data: {
+                            labels: topByRevenue.map(p => {
+                                const name = p.item_name;
+                                return name.length > 20 ? name.substring(0, 17) + '...' : name;
+                            }),
+                            datasets: [{
+                                label: 'Revenue (R)',
+                                data: topByRevenue.map(p => p.item_revenue),
+                                backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                                borderColor: 'rgba(102, 126, 234, 1)',
+                                borderWidth: 1,
+                                hoverBackgroundColor: 'rgba(102, 126, 234, 1)'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const index = context.dataIndex;
+                                            const product = topByRevenue[index];
+                                            return [
+                                                'Revenue: R' + product.item_revenue.toLocaleString('en-ZA'),
+                                                'Views: ' + product.items_viewed.toLocaleString()
+                                            ];
+                                        },
+                                        title: function(context) {
+                                            return topByRevenue[context[0].dataIndex].item_name;
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: function(value) {
+                                            if (value >= 1000000) return 'R' + (value / 1000000).toFixed(1) + 'M';
+                                            if (value >= 1000) return 'R' + (value / 1000).toFixed(0) + 'K';
+                                            return 'R' + value;
+                                        },
+                                        font: { size: 10 }
+                                    },
+                                    title: {
+                                        display: true,
+                                        text: 'Total Revenue (R)',
+                                        font: { size: 11 }
+                                    }
+                                },
+                                x: {
+                                    ticks: {
+                                        maxRotation: 45,
+                                        minRotation: 45,
+                                        font: { size: 9 }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+                
+                // Create Revenue Efficiency Chart
+                const efficiencyCtx = document.getElementById('efficiencyChart');
+                if (efficiencyCtx) {
+                    new Chart(efficiencyCtx.getContext('2d'), {
+                        type: 'bar',
+                        data: {
+                            labels: topByEfficiency.map(p => {
+                                const name = p.item_name;
+                                return name.length > 20 ? name.substring(0, 17) + '...' : name;
+                            }),
+                            datasets: [{
+                                label: 'Revenue per View (R)',
+                                data: topByEfficiency.map(p => p.revenue_per_view),
+                                backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                                borderColor: 'rgba(34, 197, 94, 1)',
+                                borderWidth: 1,
+                                hoverBackgroundColor: 'rgba(34, 197, 94, 1)'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const index = context.dataIndex;
+                                            const product = topByEfficiency[index];
+                                            return [
+                                                'Rev/View: R' + product.revenue_per_view.toFixed(2),
+                                                'Total Revenue: R' + product.item_revenue.toLocaleString('en-ZA'),
+                                                'Views: ' + product.items_viewed.toLocaleString()
+                                            ];
+                                        },
+                                        title: function(context) {
+                                            return topByEfficiency[context[0].dataIndex].item_name;
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return 'R' + value.toFixed(0);
+                                        },
+                                        font: { size: 10 }
+                                    },
+                                    title: {
+                                        display: true,
+                                        text: 'Revenue per View (R)',
+                                        font: { size: 11 }
+                                    }
+                                },
+                                x: {
+                                    ticks: {
+                                        maxRotation: 45,
+                                        minRotation: 45,
+                                        font: { size: 9 }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+                createFunnelVisualizations();
+                
+                // Generate combined AI revenue summary
+                generateRevenueSummary(topByRevenue, topByEfficiency);
+                
+            } catch (error) {
+                console.error('Error creating revenue charts:', error);
+                document.getElementById('revenueSummary').innerHTML = '<p style="color: #666;">Revenue analysis will appear here when data is available.</p>';
+            }
+        });
+        
+        function generateRevenueSummary(topByRevenue, topByEfficiency) {
+            if (!topByRevenue || topByRevenue.length === 0) {
+                document.getElementById('revenueSummary').innerHTML = '<p>No revenue data available</p>';
+                return;
+            }
+            
+            // Get top performers from each metric
+            const topRevProduct = topByRevenue[0];
+            const topEffProduct = topByEfficiency[0];
+            
+            let summaryHTML = '<ul style="margin: 0; padding-left: 20px;">';
+            
+            // First bullet - volume vs efficiency comparison
+            if (topRevProduct.item_name === topEffProduct.item_name) {
+                summaryHTML += '<li style="margin-bottom: 8px;"><strong>' + topRevProduct.item_name + '</strong> dominates both total revenue (R' + 
+                    topRevProduct.item_revenue.toLocaleString('en-ZA') + ') and efficiency (R' + 
+                    topEffProduct.revenue_per_view.toFixed(0) + '/view), indicating exceptional product-market fit</li>';
+            } else {
+                summaryHTML += '<li style="margin-bottom: 8px;"><strong>' + topRevProduct.item_name + '</strong> leads revenue through volume (R' + 
+                    topRevProduct.item_revenue.toLocaleString('en-ZA') + '), while <strong>' + topEffProduct.item_name + 
+                    '</strong> shows highest efficiency at R' + topEffProduct.revenue_per_view.toFixed(0) + 
+                    ' per view - consider increasing exposure for efficiency leaders</li>';
+            }
+            
+            // Second bullet - efficiency insights
+            const avgEfficiency = topByEfficiency.reduce((sum, p) => sum + p.revenue_per_view, 0) / topByEfficiency.length;
+            const highEfficiencyCount = topByEfficiency.filter(p => p.revenue_per_view > avgEfficiency * 1.5).length;
+            
+            if (highEfficiencyCount >= 5) {
+                summaryHTML += '<li>' + highEfficiencyCount + ' products generate R' + (avgEfficiency * 1.5).toFixed(0) + 
+                    '+ per view, suggesting strong pricing power - these efficient converters should be prioritized in marketing campaigns</li>';
+            } else {
+                const efficiencyGap = topEffProduct.revenue_per_view / avgEfficiency;
+                summaryHTML += '<li>Revenue per view varies ' + efficiencyGap.toFixed(1) + 
+                    'x from average to best performer, indicating opportunities to optimize underperforming products through better positioning or pricing</li>';
+            }
+            
+            summaryHTML += '</ul>';
+            
+            document.getElementById('revenueSummary').innerHTML = summaryHTML;
+        }
+
+        function createFunnelVisualizations() {
+    try {
+        const productsJSON = '{{ products | tojson | safe }}';
+        const productsData = JSON.parse(productsJSON);
+        
+        // Get ALL products for benchmarking (not just top performers)
+        const allProductsWithTraffic = [...productsData]
+            .filter(p => p.items_viewed >= 100); // Minimum traffic for statistical relevance
+        
+        // Calculate percentiles from ALL products, not just top performers
+        const purchaseRates = allProductsWithTraffic.map(p => (p.items_purchased / p.items_viewed) * 100).sort((a, b) => a - b);
+        const cartToPurchaseRates = allProductsWithTraffic
+            .filter(p => p.items_added_to_cart > 0)
+            .map(p => (p.items_purchased / p.items_added_to_cart) * 100)
+            .sort((a, b) => a - b);
+        
+        // Use percentiles that make business sense:
+        // P60 = Better than 60% of products (top 40%) = Green
+        // P30 = Better than 30% of products (middle) = Yellow  
+        // Below P30 = Bottom 30% = Red
+        
+        const purchaseP60 = purchaseRates[Math.floor(purchaseRates.length * 0.6)] || 1.5;
+        const purchaseP30 = purchaseRates[Math.floor(purchaseRates.length * 0.3)] || 0.8;
+        
+        const cartP60 = cartToPurchaseRates[Math.floor(cartToPurchaseRates.length * 0.6)] || 20;
+        const cartP30 = cartToPurchaseRates[Math.floor(cartToPurchaseRates.length * 0.3)] || 10;
+        
+        console.log('Benchmarks - P60 Purchase:', purchaseP60, 'P30 Purchase:', purchaseP30);
+        console.log('Benchmarks - P60 Cart:', cartP60, 'P30 Cart:', cartP30);
+        
+        function createMiniFunnel(product) {
+            const cartRate = ((product.items_added_to_cart / product.items_viewed) * 100).toFixed(0);
+            const purchaseRate = ((product.items_purchased / product.items_viewed) * 100).toFixed(0);
+            const cartToPurchase = product.items_added_to_cart > 0 ? 
+                ((product.items_purchased / product.items_added_to_cart) * 100).toFixed(0) : 0;
+            
+            // Keep border colors for classification
+            let borderColor = '#dc3545'; // Red (needs attention)
+            let borderWidth = '2px';
+            
+            // Green: Top 40% performers
+            if (parseFloat(purchaseRate) >= purchaseP60 && parseFloat(cartToPurchase) >= cartP60) {
+                borderColor = '#28a745'; // Green
+                if (parseFloat(purchaseRate) >= purchaseRates[Math.floor(purchaseRates.length * 0.8)]) {
+                    borderWidth = '3px'; // Top 20% get thicker border
+                }
+            }
+            // Yellow: Middle performers (30th-60th percentile)
+            else if (parseFloat(purchaseRate) >= purchaseP30 || parseFloat(cartToPurchase) >= cartP30) {
+                borderColor = '#ffc107'; // Yellow
+            }
+            // Red: Bottom 30% - these genuinely need attention
+
+            return {
+            html: `
+                <div style="padding: 12px; background: #ffffff; border-radius: 6px; border: ${borderWidth} solid ${borderColor};">
+                    <div style="font-size: 11px; font-weight: 600; margin-bottom: 10px; min-height: 36px; line-height: 1.3; color: #333;" title="${product.item_name}">
+                        ${product.item_name}
+                    </div>
+                    <div style="position: relative; margin-bottom: 8px;">
+                        <div style="width: 100%; height: 8px; background: #a8d5ff; margin-bottom: 3px; border-radius: 2px;" title="Views: ${product.items_viewed.toLocaleString()}"></div>
+                        <div style="width: ${cartRate}%; height: 8px; background: #4285f4; margin-bottom: 3px; border-radius: 2px;" title="Cart Rate: ${cartRate}%"></div>
+                        <div style="width: ${purchaseRate}%; height: 8px; background: #1a73e8; border-radius: 2px;" title="Purchase Rate: ${purchaseRate}%"></div>
+                    </div>
+                    <div style="font-size: 10px; color: #666;">
+                        C: ${cartRate}% | P: ${purchaseRate}% | C→P: ${cartToPurchase}%
+                    </div>
+                    <div style="font-size: 9px; color: #999; margin-top: 4px;">
+                        Views: ${product.items_viewed.toLocaleString()}
+                    </div>
+                </div>
+            `,
+                product: product,
+                funnelScore: (parseFloat(cartRate) * 0.4 + parseFloat(purchaseRate) * 0.6),
+                cartRate: parseFloat(cartRate),
+                purchaseRate: parseFloat(purchaseRate),
+                cartToPurchase: parseFloat(cartToPurchase)
+            };
+        }
+        
+        // Create mini-funnels for top 10 products by revenue
+        const top10Revenue = productsData
+            .sort((a, b) => b.item_revenue - a.item_revenue)
+            .slice(0, 10);
+        
+        const revenueFunnels = top10Revenue.map(product => createMiniFunnel(product));
+        document.getElementById('productFunnelsRevenue').innerHTML = revenueFunnels.map(f => f.html).join('');
+        
+        // Create mini-funnels for top 10 products by traffic
+        const top10Traffic = productsData
+            .sort((a, b) => b.items_viewed - a.items_viewed)
+            .slice(0, 10);
+        
+        const trafficFunnels = top10Traffic.map(product => createMiniFunnel(product));
+        document.getElementById('productFunnelsTraffic').innerHTML = trafficFunnels.map(f => f.html).join('');
+        
+        // Generate AI Funnel Insights
+        generateFunnelInsights(revenueFunnels, trafficFunnels, productsData);
+        
+    } catch (error) {
+        console.error('Error creating funnel visualizations:', error);
+    }
+}
+
+    function generateFunnelInsights(revenueFunnels, trafficFunnels, allProducts) {
+        // Analyze funnel patterns
+        const allFunnels = [...revenueFunnels, ...trafficFunnels];
+        
+        // Find best and worst funnel performers
+        const sortedByScore = allFunnels.sort((a, b) => b.funnelScore - a.funnelScore);
+        const bestFunnel = sortedByScore[0];
+        const worstFunnel = sortedByScore[sortedByScore.length - 1];
+        
+        // Analyze by product categories
+        const categoryPatterns = {};
+        allFunnels.forEach(f => {
+            const name = f.product.item_name.toLowerCase();
+            let category = 'other';
+            if (name.includes('plate')) category = 'plates';
+            else if (name.includes('mug')) category = 'mugs';
+            else if (name.includes('bowl')) category = 'bowls';
+            else if (name.includes('set')) category = 'sets';
+            else if (name.includes('bread') || name.includes('loaf')) category = 'bread items';
+            
+            if (!categoryPatterns[category]) {
+                categoryPatterns[category] = { 
+                    products: [], 
+                    avgCartRate: 0, 
+                    avgPurchaseRate: 0,
+                    avgCartToPurchase: 0
+                };
+            }
+            categoryPatterns[category].products.push(f);
+            categoryPatterns[category].avgCartRate += f.cartRate;
+            categoryPatterns[category].avgPurchaseRate += f.purchaseRate;
+            categoryPatterns[category].avgCartToPurchase += f.cartToPurchase;
+        });
+        
+        // Calculate averages
+        Object.keys(categoryPatterns).forEach(cat => {
+            const count = categoryPatterns[cat].products.length;
+            categoryPatterns[cat].avgCartRate /= count;
+            categoryPatterns[cat].avgPurchaseRate /= count;
+            categoryPatterns[cat].avgCartToPurchase /= count;
+            categoryPatterns[cat].score = categoryPatterns[cat].avgCartRate * 0.4 + categoryPatterns[cat].avgPurchaseRate * 0.6;
+        });
+        
+        // Find best and worst categories
+        const sortedCategories = Object.entries(categoryPatterns)
+            .sort((a, b) => b[1].score - a[1].score);
+        
+        const bestCategory = sortedCategories[0];
+        const worstCategory = sortedCategories[sortedCategories.length - 1];
+        
+        // Generate insights HTML
+        let insightsHTML = '<ul style="margin: 0; padding-left: 20px;">';
+        
+        // Bullet 1: Healthy funnels
+        if (bestCategory && bestCategory[1].products.length >= 2) {
+            const catName = bestCategory[0].charAt(0).toUpperCase() + bestCategory[0].slice(1);
+            insightsHTML += '<li style="margin-bottom: 8px;"><strong>' + catName + 
+                '</strong> show the healthiest funnels with ' + bestCategory[1].avgCartRate.toFixed(0) + 
+                '% cart rate and ' + bestCategory[1].avgCartToPurchase.toFixed(0) + 
+                '% cart-to-purchase conversion, indicating strong product-market fit and minimal checkout friction</li>';
+        }
+        
+        // Bullet 2: Struggling funnels
+        if (worstCategory && worstCategory[1].products.length >= 2) {
+            const catName = worstCategory[0].charAt(0).toUpperCase() + worstCategory[0].slice(1);
+            const issue = worstCategory[1].avgCartRate < 10 ? 
+                'poor cart rates (' + worstCategory[1].avgCartRate.toFixed(0) + '%), suggesting presentation issues' :
+                'low cart-to-purchase conversion (' + worstCategory[1].avgCartToPurchase.toFixed(0) + '%), indicating checkout friction';
+            insightsHTML += '<li style="margin-bottom: 8px;"><strong>' + catName + 
+                '</strong> struggle with ' + issue + ' - review pricing, images, and descriptions for this category</li>';
+        }
+        
+        // Bullet 3: Standout performers
+        insightsHTML += '<li><strong>' + bestFunnel.product.item_name + 
+            '</strong> has the best funnel (C: ' + bestFunnel.cartRate + '%, P: ' + bestFunnel.purchaseRate + 
+            '%) while <strong>' + worstFunnel.product.item_name + 
+            '</strong> needs urgent attention with only ' + worstFunnel.purchaseRate.toFixed(0) + 
+            '% of viewers converting despite ' + worstFunnel.product.items_viewed.toLocaleString() + ' views</li>';
+        
+        insightsHTML += '</ul>';
+        
+        document.getElementById('funnelInsights').innerHTML = insightsHTML;
+    }
+        
+        // AI Recommendations Functions
+        function updateAIRecommendations() {
+            const button = document.getElementById('updateRecommendations');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            const recommendationsText = document.getElementById('recommendationsText');
+            
+            console.log('Starting AI recommendations update...');
+            
+            // Disable button and show loading state
+            button.disabled = true;
+            button.textContent = 'Analyzing...';
+            loadingSpinner.style.display = 'block';
+            recommendationsText.style.display = 'none';
+            
+            // Make the API call
+            fetch('/api/ai-recommendations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({})
+            })
+            .then(response => {
+                console.log('Response received:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('Data received:', data);
+                
+                if (data.success && data.html) {
+                    recommendationsText.innerHTML = data.html;
+                } else {
+                    recommendationsText.innerHTML = `
+                        <div style="padding: 20px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+                            <strong>Unable to generate recommendations</strong><br>
+                            <small>${data.error || 'Please check your OpenAI API configuration.'}</small>
+                        </div>
+                    `;
+                }
+                
+                recommendationsText.style.display = 'block';
+                loadingSpinner.style.display = 'none';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                recommendationsText.innerHTML = `
+                    <div style="padding: 20px; background: #f8d7da; border-left: 4px solid #dc3545; border-radius: 4px;">
+                        <strong>Connection Error</strong><br>
+                        <small>${error.message}</small>
+                    </div>
+                `;
+                recommendationsText.style.display = 'block';
+                loadingSpinner.style.display = 'none';
+            })
+            .finally(() => {
+                // Re-enable button
+                button.disabled = false;
+                button.textContent = 'Update Recommendations';
+            });
+        }
+        
+        // Table Filter Function
+        function filterTable(segment, event) {
+            // Prevent any default behavior or bubbling
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            
+            // Update active button
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('filter-btn-active');
+            });
+            
+            const activeBtn = document.getElementById('filter-' + (segment === 'all' ? 'all' : 
+                segment === 'Stars' ? 'stars' : 
+                segment === 'Hidden Gems' ? 'hidden' :
+                segment === 'Revenue Drivers' ? 'revenue' :  // ADD THIS LINE
+                segment === 'Needs Attention' ? 'attention' : 'under'));
+            if (activeBtn) {
+                activeBtn.classList.add('filter-btn-active');
+            }
+
+            currentFilter = segment;
+            currentPage = 1; // Reset to first page when filtering
+            
+            // Filter rows based on segment
+            const performanceTable = document.querySelector('.table-wrapper table');
+            if (!performanceTable) return;
+            
+            if (segment === 'all') {
+                filteredRows = [...allRows];
+            } else {
+                filteredRows = allRows.filter(row => {
+                    const segmentCell = row.cells[row.cells.length - 1];
+                    if (segmentCell) {
+                        const badge = segmentCell.querySelector('.badge');
+                        if (badge) {
+                            const badgeText = badge.textContent.trim();
+                            return badgeText === segment || badgeText === segment.toUpperCase();
+                        }
+                    }
+                    return false;
+                });
+            }
+            
+            // Call updatePagination to apply the pagination
+            updatePagination();
+            
+            return false;
+        }
+
+        // Pagination variables
+        let currentPage = 1;
+        let rowsPerPage = 20;
+        let currentFilter = 'all';
+        let allRows = [];
+        let filteredRows = [];
+
+        // Initialize pagination when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Your existing tooltip and zebra stripe code...
+            
+            // Initialize pagination
+            initializePagination();
+        });
+
+        function initializePagination() {
+            const performanceTable = document.querySelector('.table-wrapper table');
+            if (!performanceTable) return;
+            
+            allRows = Array.from(performanceTable.querySelectorAll('tbody tr'));
+            filteredRows = [...allRows];
+            
+            console.log(`DEBUG: Found ${allRows.length} rows in the table HTML`);  // Add this
+            console.log(`Initialized pagination with ${allRows.length} products`);
+            updatePagination();
+        }
+
+        function changeRowsPerPage() {
+            const select = document.getElementById('rowsPerPage');
+            rowsPerPage = select.value === 'all' ? 9999 : parseInt(select.value);
+            currentPage = 1;
+            updatePagination();
+        }
+
+        function goToPage(page) {
+            currentPage = page;
+            updatePagination();
+            
+            // Scroll table into view
+            document.querySelector('.table-wrapper').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function updatePagination() {
+        // Hide all rows first
+        allRows.forEach(row => row.style.display = 'none');
+        
+        // Calculate pagination
+        const totalRows = filteredRows.length;
+        const totalPages = rowsPerPage >= totalRows ? 1 : Math.ceil(totalRows / rowsPerPage);
+        const startIndex = (currentPage - 1) * rowsPerPage;
+        const endIndex = Math.min(startIndex + rowsPerPage, totalRows);
+        
+        // Show only current page rows
+        const visibleRows = [];
+        for (let i = startIndex; i < endIndex; i++) {
+            if (filteredRows[i]) {
+                filteredRows[i].style.display = '';
+                visibleRows.push(filteredRows[i]);
+            }
+        }
+        
+        // Apply zebra striping to visible rows
+        visibleRows.forEach((row, index) => {
+            row.style.backgroundColor = index % 2 === 1 ? '#fafafa' : '';
+        });
+        
+        // Update pagination controls
+        const controls = document.getElementById('paginationControls');
+        if (controls) {
+            controls.innerHTML = '';
+            
+            if (totalPages > 1) {
+                // Previous button
+                if (currentPage > 1) {
+                    controls.innerHTML += `<button onclick="goToPage(${currentPage - 1})" class="page-btn">←</button>`;
+                }
+                
+                // Calculate page range to show
+                let startPage = Math.max(1, currentPage - 2);
+                let endPage = Math.min(totalPages, startPage + 4);
+                
+                if (endPage - startPage < 4) {
+                    startPage = Math.max(1, endPage - 4);
+                }
+                
+                // First page if not in range
+                if (startPage > 1) {
+                    controls.innerHTML += `<button onclick="goToPage(1)" class="page-btn">1</button>`;
+                    if (startPage > 2) {
+                        controls.innerHTML += `<span style="padding: 0 5px;">...</span>`;
+                    }
+                }
+                
+                // Page numbers
+                for (let i = startPage; i <= endPage; i++) {
+                    if (i === currentPage) {
+                        controls.innerHTML += `<button class="page-btn page-btn-active">${i}</button>`;
+                    } else {
+                        controls.innerHTML += `<button onclick="goToPage(${i})" class="page-btn">${i}</button>`;
+                    }
+                }
+                
+                // Last page if not in range
+                if (endPage < totalPages) {
+                    if (endPage < totalPages - 1) {
+                        controls.innerHTML += `<span style="padding: 0 5px;">...</span>`;
+                    }
+                    controls.innerHTML += `<button onclick="goToPage(${totalPages})" class="page-btn">${totalPages}</button>`;
+                }
+                
+                // Next button
+                if (currentPage < totalPages) {
+                    controls.innerHTML += `<button onclick="goToPage(${currentPage + 1})" class="page-btn">→</button>`;
+                }
+            }
+        }
+        
+        // Update count - COMPLETE THIS SECTION
+        const countElement = document.getElementById('filter-count');
+        if (countElement) {
+            if (totalRows === 0) {
+                countElement.textContent = 'No products found';
+            } else {
+                countElement.textContent = `Showing ${startIndex + 1}-${endIndex} of ${totalRows} products`;
+            }
+        }
+    }
+
+    function exportToCSV() {
+    // Get the table data from currently visible (filtered) rows
+    const visibleRows = filteredRows;
+    
+    if (visibleRows.length === 0) {
+        alert('No data to export');
+        return;
+    }
+    
+    // Define CSV headers
+    const headers = [
+        'Product Name',
+        'Views',
+        'Cart Adds',
+        'Purchases',
+        'Revenue',
+        'Cart Rate',
+        'Conv Rate',
+        'Rev/View',
+        'Segment'
+    ];
+    
+        // Build CSV content
+        let csvContent = headers.join(',') + '\n';
+        
+        visibleRows.forEach(row => {
+            const cells = row.cells;
+            const rowData = [];
+            
+            // Product Name - handle commas in names
+            const productName = cells[0].textContent.trim().replace(/"/g, '""');
+            rowData.push(`"${productName}"`);
+            
+            // Views (remove commas)
+            rowData.push(cells[1].textContent.replace(/,/g, ''));
+            
+            // Cart Adds
+            rowData.push(cells[2].textContent);
+            
+            // Purchases
+            rowData.push(cells[3].textContent);
+            
+            // Revenue (remove R and commas)
+            rowData.push(cells[4].textContent.replace(/R|,/g, ''));
+            
+            // Cart Rate (keep as percentage)
+            rowData.push(cells[5].textContent);
+            
+            // Conv Rate (keep as percentage)
+            rowData.push(cells[6].textContent);
+            
+            // Rev/View (remove R and commas)
+            rowData.push(cells[7].textContent.replace(/R|,/g, ''));
+            
+            // Segment
+            const segmentBadge = cells[8].querySelector('.badge');
+            rowData.push(segmentBadge ? segmentBadge.textContent.trim() : '');
+            
+            csvContent += rowData.join(',') + '\n';
+        });
+        
+        // Create download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        
+        // Generate filename with current filter and timestamp
+        const currentDate = new Date().toISOString().split('T')[0];
+        const filterName = currentFilter === 'all' ? 'all-products' : currentFilter.toLowerCase().replace(/ /g, '-');
+        const filename = `products-${filterName}-${currentDate}.csv`;
+        
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Show confirmation
+        console.log(`Exported ${visibleRows.length} products to ${filename}`);
+    }
+
+        // Modal Functions
+        function openModal(event) {
+            event.preventDefault();
+            document.getElementById('modelModal').style.display = 'flex';
+        }
+        
+        function closeModal() {
+            document.getElementById('modelModal').style.display = 'none';
+        }
+        
+        function closeModalBackground(event) {
+            if (event.target.classList.contains('modal-overlay')) {
+                closeModal();
+            }
+        }
+
+        // Tooltip functionality for Revenue Lost AND initial table styling
+        document.addEventListener('DOMContentLoaded', function() {
+            // Tooltip functionality
+            const revenueHeader = document.querySelector('.revenue-lost-header');
+            const tooltipBox = document.querySelector('.revenue-lost-header .tooltip-box');
+            
+            if (revenueHeader && tooltipBox) {
+                revenueHeader.addEventListener('mouseenter', function() {
+                    tooltipBox.style.display = 'block';
+                });
+                
+                revenueHeader.addEventListener('mouseleave', function() {
+                    tooltipBox.style.display = 'none';
+                });
+            }
+            
+            // Apply initial zebra striping to table
+            const rows = document.querySelectorAll('tbody tr');
+            rows.forEach((row, index) => {
+                if (index % 2 === 1) {
+                    row.style.backgroundColor = '#fafafa';
+                }
+            });
+            
+            // Initialize pagination
+            initializePagination();
+        }); // Make sure this closing bracket and parenthesis are here
+    </script>
+<script>
+    window.FRANKIE = {
+      title: "AI Merch Insights",
+      page: "merch",
+      window: { from: "{{ date_from }}", to: "{{ date_to }}" },
+      payload: {
+        insights: {{ insights | tojson | safe }},
+        products: {{ products[:100] | tojson | safe }},         // trim if large
+        recs:     {{ recommendations | tojson | safe }}
+      }
+    };
+  </script>
+  {% include '_frankie.html' %}
+</body>
+</html>

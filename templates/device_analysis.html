@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Analysis - Frankie AI</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+                /* Base Reset */
+                * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333333;
+            line-height: 1.6;
+        }
+        
+        /* Sidebar Styles */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 240px;
+            background: #ffffff;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+        }
+        
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+        
+        .sidebar-nav {
+            flex: 1;
+            padding: 20px 0;
+        }
+        
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            color: #666;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        
+        .nav-item:hover {
+            background: #f8f9fa;
+            color: #333;
+        }
+        
+        .nav-item.active {
+            background: #f0f4ff;
+            color: #667eea;
+            font-weight: 500;
+        }
+        
+        .nav-item.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: #667eea;
+        }
+        
+        .nav-icon {
+            font-size: 18px;
+            width: 24px;
+            text-align: center;
+        }
+        
+        .sidebar-footer {
+            padding: 20px;
+            border-top: 1px solid #f0f0f0;
+        }
+        
+        .date-range-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+
+        .main-title {
+            font-size: 28px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+        
+        /* Main Content */
+        .main-content {
+            margin-left: 240px;
+            min-height: 100vh;
+            background: #f5f5f5;
+        }
+        
+        /* Score Card */
+        .score-card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .score-display {
+            display: flex;
+            align-items: center;
+            gap: 40px;
+        }
+        
+        .big-score {
+            font-size: 72px;
+            font-weight: bold;
+            color: #4285f4;
+            line-height: 1;
+        }
+        
+        .score-details {
+            flex: 1;
+        }
+        
+        .score-label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .score-description {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .traffic-quality {
+            display: inline-block;
+            padding: 6px 12px;
+            background: #e8f5e9;
+            color: #2e7d32;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        
+        /* Strategy Cards */
+        .strategy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .strategy-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            border-left: 4px solid #ccc;
+        }
+        
+        .strategy-card.high-intent {
+            border-left: 4px solid #4caf50;
+        }
+        
+        .strategy-card.medium-intent {
+            border-left: 4px solid #ff9800;
+        }
+        
+        .strategy-card.low-intent {
+            border-left: 4px solid #f44336;
+        }
+        
+        .strategy-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #888;
+            margin-bottom: 8px;
+        }
+        
+        .strategy-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .strategy-description {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.5;
+        }
+        
+        /* Channel Breakdown */
+        .channel-breakdown {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .channel-row {
+            display: flex;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .channel-row:last-child {
+            border-bottom: none;
+        }
+        
+        .channel-name {
+            width: 120px;
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .channel-score {
+            width: 60px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .channel-bar {
+            flex: 1;
+            margin: 0 20px;
+            height: 30px;
+            background: #f0f0f0;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .channel-fill {
+            height: 100%;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .fill-high {
+            background: #4caf50;
+        }
+        
+        .fill-medium {
+            background: #ff9800;
+        }
+        
+        .fill-low {
+            background: #f44336;
+        }
+        
+        .channel-metrics {
+            display: flex;
+            gap: 20px;
+            font-size: 13px;
+            color: #666;
+        }
+        
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .metric-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            height: 350px; /* Add fixed height */
+            display: flex;
+            flex-direction: column;
+        }
+
+        .metric-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #f5f5f5;
+        }
+        
+        .metric-row:last-child {
+            border-bottom: none;
+        }
+        
+        .metric-label {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .metric-value {
+            font-weight: 600;
+            color: #333;
+            font-size: 15px;
+        }
+        
+        /* User Mix Bars */
+        .user-mix-bar {
+            display: flex;
+            height: 12px;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #f0f0f0;
+        }
+        
+        .user-mix-new {
+            background: #4285f4;
+        }
+        
+        .user-mix-returning {
+            background: #34a853;
+        }
+        
+        .device-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .device-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .device-icon {
+            font-size: 32px;
+            margin-bottom: 15px;
+        }
+        
+        .device-metrics {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #f0f0f0;
+        }
+        
+        .metric-item {
+            text-align: center;
+        }
+        
+        .metric-label {
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        
+        .metric-value {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .resolution-table {
+            width: 100%;
+            margin-top: 20px;
+        }
+        
+        .resolution-table th {
+            text-align: left;
+            padding: 12px;
+            background: #f8f9fa;
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+        }
+        
+        .resolution-table td {
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .resolution-bar {
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 5px 0;
+        }
+        
+        .resolution-fill {
+            height: 100%;
+            background: linear-gradient(to right, #667eea, #764ba2);
+            border-radius: 4px;
+        }
+
+        .filter-btn-active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .nav-item.active {
+            background: #f0f4ff;
+            color: #667eea;
+            font-weight: 500;
+        }
+
+        .nav-item.active::before {
+            background: #667eea;
+        }
+
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    {% include '_sidebar.html' %}
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="main-container">
+            <!-- Title -->
+            <div class="title-section">
+                <div class="title-group">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <h1 class="main-title">Device Analysis</h1>
+                        <a href="/device-analysis?from={{ date_from }}&to={{ date_to }}&refresh=1"
+                           style="font-size:12px; color:#667eea; text-decoration:none; border:1px solid #e0e0e0; padding:6px 10px; border-radius:14px;">
+                          Refresh data
+                        </a>
+                      </div>
+                    <p class="subtitle">Understand performance across devices and screen sizes</p>
+                </div>
+            </div>
+            
+            <!-- Device Category Cards -->
+            <div class="device-grid">
+                {% for device in device_data.categories %}
+                <div class="device-card">
+                    <h3 style="font-size: 18px; margin-bottom: 10px;">{{ device.name }}</h3>
+                    <div style="font-size: 28px; font-weight: bold; color: #333;">{{ device.traffic }}%</div>
+                    <div style="font-size: 14px; color: #666;">of total traffic</div>
+                    
+                    <div class="device-metrics">
+                        <div class="metric-item">
+                            <div class="metric-label">ARPU</div>
+                            <div class="metric-value">R{{ "%.2f"|format(device.arpu) }}</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-label">Conv Rate</div>
+                            <div class="metric-value">{{ "%.2f"|format(device.conversion) }}%</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-label">Eng. Time</div>
+                            <div class="metric-value">{{ device.engagement }}</div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            <!-- Funnel Comparison -->
+            <div style="background: white; border-radius: 12px; padding: 30px; margin-bottom: 30px;">
+                <h2 style="font-size: 20px; margin-bottom: 20px;">Conversion Funnel by Device</h2>
+                <div style="position: relative; height: 350px;">
+                    <canvas id="deviceFunnelChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Screen Resolution Analysis -->
+            <div style="background: white; border-radius: 12px; padding: 30px; margin-bottom: 30px;">
+                <h2 style="font-size: 20px; margin-bottom: 20px;">Screen Resolution Performance</h2>
+                
+                <!-- Resolution Bands Chart -->
+                <div style="margin-bottom: 30px;">
+                    <h3 style="font-size: 16px; margin-bottom: 15px; color: #666;">Performance by Resolution Band</h3>
+                    <div style="position: relative; height: 300px;">
+                        <canvas id="resolutionBandsChart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Top Resolutions Table -->
+                <h3 style="font-size: 16px; margin-bottom: 15px; color: #666;">Top Screen Resolutions</h3>
+                <table class="resolution-table">
+                    <thead>
+                        <tr>
+                            <th>Resolution</th>
+                            <th>Device Type</th>
+                            <th>Traffic Share</th>
+                            <th>ARPU</th>
+                            <th>Conversion</th>
+                            <th style="width: 200px;">Traffic Contribution</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for res in device_data.resolutions %}
+                        <tr>
+                            <td><strong>{{ res.resolution }}</strong></td>
+                            <td>{{ res.device_type }}</td>
+                            <td>{{ res.traffic_share }}%</td>
+                            <td>R{{ res.arpu }}</td>
+                            <td>{{ res.conversion }}%</td>
+                            <td>
+                                <div class="resolution-bar">
+                                    <div class="resolution-fill" style="width: {{ res.traffic_share }};"></div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Engagement Metrics -->
+            <div class="metrics-grid">
+                <div class="metric-panel">
+                    <div class="metric-header">
+                        Engagement by Device
+                    </div>
+                    <div style="position: relative; flex: 1; min-height: 0;">
+                        <canvas id="engagementChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="metric-panel">
+                    <div class="metric-header">
+                        Revenue Contribution
+                    </div>
+                    <div style="position: relative; flex: 1; min-height: 0;">
+                        <canvas id="revenueDistChart"></canvas>
+                    </div>
+                </div>
+            </div>
+    
+    <script>
+        // Device Funnel Chart
+        const funnelCtx = document.getElementById('deviceFunnelChart');
+        if (funnelCtx) {
+            new Chart(funnelCtx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ['Views', 'Add to Cart', 'Purchase'],
+                    datasets: [
+                        {
+                            label: 'Desktop',
+                            data: {{ device_data.funnel.desktop | tojson }},
+                            backgroundColor: '#1a73e8'  // Dark blue
+                        },
+                        {
+                            label: 'Mobile',
+                            data: {{ device_data.funnel.mobile | tojson }},
+                            backgroundColor: '#4285f4'  // Medium blue
+                        },
+                        {
+                            label: 'Tablet',
+                            data: {{ device_data.funnel.tablet | tojson }},
+                            backgroundColor: '#a8d5ff'  // Light blue (matching your color scheme)
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        
+        // Resolution Bands Chart
+        const resCtx = document.getElementById('resolutionBandsChart');
+        if (resCtx) {
+            new Chart(resCtx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ['320-400px', '401-768px', '769-1366px', '1367-1920px', '1920px+'],
+                    datasets: [{
+                        label: 'ARPU by Screen Width',
+                        data: [78.50, 85.70, 95.20, 112.30, 145.20],
+                        backgroundColor: '#4285f4',
+                        borderColor: '#1a73e8',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Screen Width Band'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Average Revenue Per User (R)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return 'R' + value;
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return 'ARPU: R' + context.parsed.y.toFixed(2);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Engagement by Device Chart
+        const engagementCtx = document.getElementById('engagementChart');
+        if (engagementCtx) {
+            new Chart(engagementCtx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ['Desktop', 'Mobile', 'Tablet'],
+                    datasets: [{
+                        label: 'Avg. Engagement Time (seconds)',
+                        data: [272, 138, 225], // 4m32s, 2m18s, 3m45s in seconds
+                        backgroundColor: ['#1a73e8', '#4285f4', '#a8d5ff'],  // Same order and colors
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    const minutes = Math.floor(value / 60);
+                                    const seconds = value % 60;
+                                    return minutes + 'm ' + seconds + 's';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed.y;
+                                    const minutes = Math.floor(value / 60);
+                                    const seconds = value % 60;
+                                    return 'Engagement: ' + minutes + 'm ' + seconds + 's';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Revenue Distribution Chart
+        const revenueCtx = document.getElementById('revenueDistChart');
+        if (revenueCtx) {
+            new Chart(revenueCtx.getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Desktop', 'Mobile', 'Tablet'],
+                    datasets: [{
+                        data: [52.3, 39.8, 7.9], // Revenue share percentages
+                        backgroundColor: ['#1a73e8', '#4285f4', '#a8d5ff'],  // Same order and colors
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.label + ': ' + context.parsed + '% of revenue';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+<script>
+    window.FRANKIE = {
+      title: "AI Device Insights",
+      page: "device",
+      window: { from: "{{ date_from }}", to: "{{ date_to }}" },
+      payload: { device_data: {{ device_data | tojson | safe }} }
+    };
+  </script>
+  {% include '_frankie.html' %}
+</body>
+</html>
